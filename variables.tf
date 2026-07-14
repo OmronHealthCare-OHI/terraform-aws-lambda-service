@@ -5,7 +5,7 @@ variable "service_name" {
 
 variable "name_prefix" {
   type        = string
-  description = "Environment/region prefix, e.g. usnp-usw2"
+  description = "Prefix for resource names, e.g. an <env><region> code like myapp-euw1"
 }
 
 # The exact build artifact to deploy, as produced by the build workflow.

@@ -1,11 +1,11 @@
 # Complete example: every input shown, with realistic values.
 provider "aws" {
   region              = "us-west-2"
-  allowed_account_ids = ["689344065739"]
+  allowed_account_ids = ["123456789012"]
 
   default_tags {
     tags = {
-      team    = "cloud-foundations"
+      team    = "example"
       service = "example"
       stage   = "test"
     }
@@ -16,7 +16,7 @@ module "example" {
   source = "../.."
 
   service_name = "example"
-  name_prefix  = "usnp-usw2"
+  name_prefix  = "myapp-euw1"
 
   artifact_bucket  = "omron-build-artifacts"
   artifact_key     = "example/abc123.zip"
@@ -28,7 +28,7 @@ module "example" {
   timeout               = 10
   environment_variables = { LOG_LEVEL = "info" }
   log_retention_days    = 30
-  permissions_boundary_arn = "arn:aws:iam::689344065739:policy/usnp-usw2-pipeline-permissions-boundary"
+  permissions_boundary_arn = "arn:aws:iam::123456789012:policy/example-permissions-boundary"
   extra_policy_json        = ""
   extra_tags            = {}
 }

@@ -1,0 +1,30 @@
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+
+# The next version is computed from the labels on PRs merged since the last
+# release. Label your PRs: `major`/`breaking`, `minor`/`feature`, or
+# `patch`/`fix` (patch is the default if unlabelled).
+version-resolver:
+  major:
+    labels: ['major', 'breaking']
+  minor:
+    labels: ['minor', 'feature', 'enhancement']
+  patch:
+    labels: ['patch', 'fix', 'bug', 'chore', 'docs', 'ci']
+  default: patch
+
+categories:
+  - title: '💥 Breaking changes'
+    labels: ['major', 'breaking']
+  - title: '🚀 Features'
+    labels: ['minor', 'feature', 'enhancement']
+  - title: '🐛 Fixes'
+    labels: ['patch', 'fix', 'bug']
+  - title: '🧰 Maintenance'
+    labels: ['chore', 'docs', 'ci']
+
+change-template: '- $TITLE (#$NUMBER) @$AUTHOR'
+template: |
+  ## Changes
+
+  $CHANGES

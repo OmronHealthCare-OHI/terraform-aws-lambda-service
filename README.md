@@ -1,69 +1,58 @@
-# Omron-Terraform-Modules
+# lambda-service (Terraform module)
 
-Shared Terraform building blocks for OMRON services. Each module comes
-pre-configured with the organization's requirements: naming prefix, required
-tags, encryption, and sensible defaults, so resources built from these
-modules pass the pipeline guardrails without extra work.
+A Terraform module for a Lambda service the pipeline-friendly way: versioned
+artifact pinning, alias-based instant rollback, a minimal runtime role, and a
+log group with retention.
 
-## How to use a module
-
-Reference a module by git source, pinned to a version tag:
+## Usage
 
 ```hcl
 module "service" {
-  source = "github.com/OmronHealthCare-OHI/Omron-Terraform-Modules//modules/lambda-service?ref=v0.1.0"
+  source = "github.com/OmronHealthCare-OHI/terraform-aws-lambda-service?ref=v0.1.0"
 
-  # inputs, see the module's README
+  service_name = "hello-service"
+  name_prefix  = "myapp-euw1" # <env><region>-style prefix used in resource names
+
+  # Required when the caller (e.g. a CI deploy role) may only create IAM roles
+  # that carry a permissions boundary. Leave unset when applying without one.
+  permissions_boundary_arn = var.permissions_boundary_arn
+
+  # The exact build artifact to deploy (produced by your build/CI):
+  artifact_bucket  = var.artifact_bucket
+  artifact_key     = var.artifact_key
+  artifact_version = var.artifact_version
 }
 ```
 
-The `?ref=` pin means nothing changes under your feet: you upgrade by
-bumping the version deliberately. Never reference `main` directly.
+Pin an exact `?ref=` tag — never reference `main`. Full input list in
+[`examples/complete`](examples/complete/main.tf).
 
-## Modules
+## What you get
 
-| Module | What it builds |
-|--------|----------------|
-| [`lambda-service`](modules/lambda-service/) | A Lambda function with alias-based rollback, minimal runtime role, and logs |
+- A `{name_prefix}-{service_name}` Lambda that publishes an immutable version
+  per deploy.
+- A `live` alias pointing at that version — invoke the alias, never the
+  function directly. Rollback = repoint the alias (near-instant).
+- A runtime role (`{name_prefix}-cicd-{service_name}-exec`, carrying the
+  permissions boundary when provided) that can only write logs by default.
+  Extra permissions are added via an **inline** policy from `extra_policy_json`
+  — managed-policy attachment is deliberately not used, so the module works
+  under permission boundaries that forbid `iam:AttachRolePolicy`.
+- A CloudWatch log group with configurable retention (default 30 days).
 
-Planned: `dynamodb-table`, `service-secrets`.
+## Inputs & outputs
 
-## Conventions every module follows
+See [`variables.tf`](variables.tf) and [`outputs.tf`](outputs.tf). The three
+`artifact_*` inputs come from whatever builds and uploads your Lambda zip;
+tags (`team`, `service`, `stage`) come from the caller's provider
+`default_tags`.
 
-- Required inputs: `service_name`, `name_prefix` (e.g. `usnp-usw2`)
-- Tags come from the consumer's provider `default_tags` (team, service, stage); modules accept an optional `extra_tags` input
-- Resource names: `{name_prefix}-{service_name}[-suffix]`
-- Each module has a README and an `examples/complete` folder showing full usage
-- Breaking changes only in a new major version
+## Conventions
 
-## Versioning
-
-Semver git tags (`v0.1.0`). Changelog in GitHub Releases. Consumers pin
-exact versions; the changelog tells them what an upgrade brings.
+- Required inputs: `service_name`, `name_prefix`.
+- Resource names: `{name_prefix}-{service_name}[-suffix]`.
+- Breaking changes only in a new major version — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Ownership
 
-Cloud Foundations (CLF). Changes via PR.
-
-## Consuming this repo from CI (access token)
-
-This is a **private** repo, and Terraform fetches modules over git
-(`github.com/OmronHealthCare-OHI/Omron-Terraform-Modules//modules/...`). So a
-pipeline that consumes these modules needs a **read token**, provided as a
-secret **in the consuming repo** (not here):
-
-| Where | Name | What it is |
-|-------|------|------------|
-| Consuming pipeline repo → Secrets | `MODULES_READ_TOKEN` | Read access to this repo. A fine-grained PAT or GitHub App installation token with **Contents: Read** on `Omron-Terraform-Modules`. The build/plan/apply workflows use it via `git config insteadOf` to fetch modules. |
-
-Create it, then in the consuming repo:
-
-```bash
-gh secret set MODULES_READ_TOKEN --repo OmronHealthCare-OHI/<service-repo> --body "<token>"
-```
-
-See `.env.example` for the reference.
-
-**This repo itself needs no GitHub variables or secrets today.** If module CI
-is added later (e.g. `terraform validate` + Checkov on PRs), it runs offline
-and needs no AWS credentials.
+Cloud Foundations. Changes via PR.

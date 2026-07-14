@@ -1,0 +1,22 @@
+name: Release Drafter
+
+# Keeps a DRAFT GitHub Release up to date with the next semver version and
+# notes, computed from merged-PR labels. Publishing that draft (in the
+# Releases UI) is what actually creates the version tag.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  update_release_draft:
+    permissions:
+      contents: write        # create/update the draft release
+      pull-requests: read     # read PR labels to compute the bump
+    runs-on: ubuntu-latest
+    steps:
+      - uses: release-drafter/release-drafter@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
