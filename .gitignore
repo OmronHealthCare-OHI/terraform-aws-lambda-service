@@ -1,0 +1,25 @@
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Terraform working files (from running examples/tests locally)
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Note: .terraform.lock.hcl is committed on purpose in examples
+# (it pins provider versions for reproducible plans).
+
+# Local env files (never commit real values; .env.example is the reference)
+.env
+.env.*
+!.env.example
