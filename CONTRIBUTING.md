@@ -1,70 +1,54 @@
 # Contributing
 
-## Versioning & releases
+## Versioning and releases
 
-Shared Terraform modules, versioned with [Semantic Versioning](https://semver.org)
-git tags: `vMAJOR.MINOR.PATCH`. Consumers reference modules by exact tag and
-**never** by `main`:
+Semantic versioning. Git tags have **no `v` prefix** (for example `0.1.0`). On
+each release the moving tags `0` (major), `0.1` (minor), and `latest` are moved
+to the release too, so consumers can pin at the level they want.
+
+Consumers pin a tag and never reference `main`:
 
 ```hcl
-source = "github.com/OmronHealthCare-OHI/terraform-aws-lambda-service?ref=v0.1.0"
+source = "github.com/OmronHealthCare-OHI/terraform-aws-lambda-service?ref=0.1.0"
 ```
 
-- **MAJOR** — breaking: a removed/renamed variable or output, or a change that
+You can also pin a moving tag (`?ref=0`, `?ref=0.1`, or `?ref=latest`) for
+automatic updates at that level. While the module is in `0.x`, minor releases
+may still break, so prefer exact pins until `1.0.0`.
+
+- **MAJOR**: breaking. A removed or renamed variable or output, or a change that
   forces resource replacement or a provider major bump.
-- **MINOR** — backwards-compatible additions (new optional variable/output).
-- **PATCH** — backwards-compatible fixes.
-- **0.x note:** while under `v0`, minor versions may still break; we move to
-  `v1.0.0` once the module set is stable and then honour SemVer strictly.
+- **MINOR**: backwards compatible additions (a new optional variable or output).
+- **PATCH**: backwards compatible fixes.
 
-Terraform git sources don't support version ranges, so consumers pin an exact
-tag and bump deliberately — the release notes say what an upgrade brings.
+## How a release happens
 
-### Cutting a release
+1. Open a PR. The labeler adds a `version: major|minor|patch` label from your
+   branch name or PR title. Add or correct it if needed.
+2. Merge to `main`. Release Drafter keeps a draft release updated with the next
+   version and the notes.
+3. Publish the draft in the Releases tab. That creates the version tag, and the
+   moving `major` / `minor` / `latest` tags follow automatically.
 
-1. Label each PR `major`/`breaking`, `minor`/`feature`, or `patch`/`fix`.
-2. Merge to `main`. **Release Drafter** updates the draft release + notes.
-3. Publish the draft in the **Releases** UI → creates the `vX.Y.Z` tag.
+The version bump is read from labels:
+- `version: major` (or a `feat!:` / `fix!:` PR title)
+- `version: minor` (a `feat:` PR title)
+- `version: patch` (a `fix:` or `chore:` PR title, or `bug` / `dependencies`)
 
-### One-time seed (first release)
+## Commit and PR conventions
 
-```bash
-git tag v0.1.0 && git push origin v0.1.0
-```
-## Commit & PR conventions
+Use [Conventional Commits](https://www.conventionalcommits.org):
+`type(scope): summary`. Types: `feat` (minor), `fix` (patch),
+`docs` / `chore` / `ci` / `refactor` / `test` / `build` (patch or none), and any
+type with `!` or a `BREAKING CHANGE:` footer (major).
 
-Releases are driven by the **PR label** (version bump) and **PR title** (the
-changelog line) — not by commit messages. But we keep commits consistent too,
-using [Conventional Commits](https://www.conventionalcommits.org):
+- Keep the subject short, imperative, lowercase, no trailing period.
+- The PR title becomes the changelog line, so keep it clean.
+- Squash-merge so `main` keeps one commit per PR.
 
-```
-<type>(<scope>): <imperative summary>
+## Checks on every PR
 
-<why, if not obvious>
-```
-
-**Types → release effect:**
-
-| Type | Meaning | Bump |
-|------|---------|------|
-| `feat` | new capability | minor |
-| `fix` | bug fix | patch |
-| `docs`, `chore`, `ci`, `refactor`, `test`, `build` | housekeeping | patch / none |
-| any type with `!` (e.g. `feat!:`) or a `BREAKING CHANGE:` footer | breaking | major |
-
-**Rules of thumb:**
-
-- Subject line: imperative, lowercase, no trailing period, ~50–72 chars. Put the *why* in the body.
-- Reference the tracking issue if you have one (internal maintainers use Linear keys, e.g. `ABC-123`).
-- The **PR title** should be a clean Conventional-Commit-style summary — it becomes the release note.
-- Apply the right **label** (`major`/`breaking`, `minor`/`feature`, `patch`/`fix`) — this is what sets the version bump.
-- **Squash-merge** PRs, so `main` keeps one clean commit per PR that matches the PR title.
-
-**Examples:**
-
-```
-feat: add configurable memory_size and timeout
-fix: scope the runtime log policy to the function's own log group
-docs: document extra_policy_json usage
-feat!: replace extra_policy_arns with an inline extra_policy_json
-```
+`pull-request.yml` runs the labeler and `validate.yml`, which runs
+`terraform fmt`, `init`, `validate`, `terraform test`, and Checkov (config in
+`.checkov-config.yml`). Keep the code formatted with `terraform fmt` and the
+tests green.

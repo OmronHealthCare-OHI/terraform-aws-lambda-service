@@ -8,7 +8,7 @@ log group with retention.
 
 ```hcl
 module "service" {
-  source = "github.com/OmronHealthCare-OHI/terraform-aws-lambda-service?ref=v0.1.0"
+  source = "github.com/OmronHealthCare-OHI/terraform-aws-lambda-service?ref=0.1.0"
 
   service_name = "hello-service"
   name_prefix  = "myapp-euw1" # <env><region>-style prefix used in resource names
@@ -24,7 +24,7 @@ module "service" {
 }
 ```
 
-Pin an exact `?ref=` tag — never reference `main`. Full input list in
+Pin an exact `?ref=` tag. Never reference `main`. Full input list in
 [`examples/complete`](examples/complete/main.tf).
 
 ## What you get

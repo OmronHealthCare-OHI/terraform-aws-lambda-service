@@ -22,13 +22,13 @@ module "example" {
   artifact_key     = "example/abc123.zip"
   artifact_version = "3sL4kqtJlcpXroDTDmJ+rmSpXd3dIbrHY+MTRCxf3vjVBH40Nr8X8gdRQBpUMLUo"
 
-  handler               = "handler.lambdaHandler"
-  runtime               = "nodejs20.x"
-  memory_size           = 256
-  timeout               = 10
-  environment_variables = { LOG_LEVEL = "info" }
-  log_retention_days    = 30
+  handler                  = "handler.lambdaHandler"
+  runtime                  = "nodejs20.x"
+  memory_size              = 256
+  timeout                  = 10
+  environment_variables    = { LOG_LEVEL = "info" }
+  log_retention_days       = 30
   permissions_boundary_arn = "arn:aws:iam::123456789012:policy/example-permissions-boundary"
   extra_policy_json        = ""
-  extra_tags            = {}
+  extra_tags               = {}
 }
