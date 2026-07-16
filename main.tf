@@ -28,6 +28,10 @@ resource "aws_lambda_function" "this" {
   timeout       = var.timeout
   role          = aws_iam_role.exec.arn
 
+  kms_key_arn = var.kms_key_arn != "" ? var.kms_key_arn : null
+
+  reserved_concurrent_executions = var.reserved_concurrent_executions
+
   s3_bucket         = var.artifact_bucket
   s3_key            = var.artifact_key
   s3_object_version = var.artifact_version
@@ -105,5 +109,6 @@ resource "aws_iam_role_policy" "exec" {
 resource "aws_cloudwatch_log_group" "this" {
   name              = "/aws/lambda/${local.function_name}"
   retention_in_days = var.log_retention_days
+  kms_key_id        = var.kms_key_arn != "" ? var.kms_key_arn : null
   tags              = var.extra_tags
 }

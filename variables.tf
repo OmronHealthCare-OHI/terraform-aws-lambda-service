@@ -38,14 +38,35 @@ variable "runtime" {
 
 variable "memory_size" {
   type        = number
-  description = "Memory in MB"
+  description = "Memory in MB. Capped by the module as a cost guardrail; raise the cap in the module deliberately if a service genuinely needs more."
   default     = 256
+
+  validation {
+    condition     = var.memory_size >= 128 && var.memory_size <= 2048
+    error_message = "memory_size must be between 128 and 2048 MB (module cost guardrail)."
+  }
 }
 
 variable "timeout" {
   type        = number
-  description = "Timeout in seconds"
+  description = "Timeout in seconds. Capped by the module so a runaway invocation cannot run, and bill, for the full 15 minutes."
   default     = 10
+
+  validation {
+    condition     = var.timeout >= 1 && var.timeout <= 300
+    error_message = "timeout must be between 1 and 300 seconds (module guardrail)."
+  }
+}
+
+variable "reserved_concurrent_executions" {
+  type        = number
+  description = "Ceiling on the function's concurrent executions (the Lambda autoscaling limit). -1 leaves it unreserved. The module caps how much a single service may reserve from the shared account pool."
+  default     = -1
+
+  validation {
+    condition     = var.reserved_concurrent_executions >= -1 && var.reserved_concurrent_executions <= 100
+    error_message = "reserved_concurrent_executions must be between -1 (unreserved) and 100 (module autoscaling guardrail)."
+  }
 }
 
 variable "environment_variables" {
@@ -56,8 +77,19 @@ variable "environment_variables" {
 
 variable "log_retention_days" {
   type        = number
-  description = "How long CloudWatch keeps the logs"
+  description = "How long CloudWatch keeps the logs. Must be a value CloudWatch Logs accepts."
   default     = 30
+
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.log_retention_days)
+    error_message = "log_retention_days must be one of the values CloudWatch Logs accepts (e.g. 1, 7, 14, 30, 90, 365, 731)."
+  }
+}
+
+variable "kms_key_arn" {
+  type        = string
+  description = "Optional customer-managed KMS key ARN for the function's environment variables and its log group. Empty uses AWS-managed keys (still encrypted at rest). The key and its key policy are provided by the platform, not created here."
+  default     = ""
 }
 
 variable "permissions_boundary_arn" {

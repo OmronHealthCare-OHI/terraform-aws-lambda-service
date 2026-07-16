@@ -31,4 +31,7 @@ module "example" {
   permissions_boundary_arn = "arn:aws:iam::123456789012:policy/example-permissions-boundary"
   extra_policy_json        = ""
   extra_tags               = {}
+
+  reserved_concurrent_executions = -1
+  kms_key_arn                    = ""
 }
