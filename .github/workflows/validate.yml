@@ -32,7 +32,7 @@ jobs:
         uses: hashicorp/setup-terraform@v4
       - name: Terraform format
         id: tf-fmt
-        run: terraform -chdir=${{inputs.terraform_directory}} fmt -check
+        run: terraform -chdir=${{inputs.terraform_directory}} fmt -check -recursive
         continue-on-error: true
       - name: Terraform init
         id: tf-init

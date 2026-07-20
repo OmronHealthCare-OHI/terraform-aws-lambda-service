@@ -48,6 +48,11 @@ resource "aws_lambda_function" "this" {
   }
 
   tags = var.extra_tags
+
+  depends_on = [
+    aws_cloudwatch_log_group.this,
+    aws_iam_role_policy.exec,
+  ]
 }
 
 # The stable address consumers invoke. Traffic follows this alias,
@@ -106,6 +111,7 @@ resource "aws_iam_role_policy" "exec" {
   policy = data.aws_iam_policy_document.exec.json
 }
 
+# NOTE: when kms_key_arn is set, this group is created encrypted with that CMK
 resource "aws_cloudwatch_log_group" "this" {
   name              = "/aws/lambda/${local.function_name}"
   retention_in_days = var.log_retention_days

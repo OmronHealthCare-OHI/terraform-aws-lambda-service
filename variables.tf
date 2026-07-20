@@ -64,8 +64,8 @@ variable "reserved_concurrent_executions" {
   default     = -1
 
   validation {
-    condition     = var.reserved_concurrent_executions >= -1 && var.reserved_concurrent_executions <= 100
-    error_message = "reserved_concurrent_executions must be between -1 (unreserved) and 100 (module autoscaling guardrail)."
+    condition     = var.reserved_concurrent_executions == -1 || (var.reserved_concurrent_executions >= 1 && var.reserved_concurrent_executions <= 100)
+    error_message = "reserved_concurrent_executions must be -1 (unreserved) or between 1 and 100 (module autoscaling guardrail). 0 is rejected because it hard-throttles the function."
   }
 }
 
@@ -88,7 +88,7 @@ variable "log_retention_days" {
 
 variable "kms_key_arn" {
   type        = string
-  description = "Optional customer-managed KMS key ARN for the function's environment variables and its log group. Empty uses AWS-managed keys (still encrypted at rest). The key and its key policy are provided by the platform, not created here."
+  description = "Optional customer-managed KMS key ARN for the function's environment variables and its log group. Empty uses AWS-managed keys (still encrypted at rest). The key and its key policy are provided by the platform, not created here. IMPORTANT: the key policy MUST grant the CloudWatch Logs service principal (logs.<region>.amazonaws.com) kms:Encrypt*/Decrypt/ReEncrypt*/GenerateDataKey*/Describe*, or log-group creation fails at apply with AccessDeniedException."
   default     = ""
 }
 
