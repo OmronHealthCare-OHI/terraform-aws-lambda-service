@@ -23,6 +23,7 @@ module "example" {
 
   handler                  = "handler.lambdaHandler"
   runtime                  = "nodejs20.x"
+  architectures            = ["arm64"]
   memory_size              = 256
   timeout                  = 10
   environment_variables    = { LOG_LEVEL = "info" }

@@ -52,6 +52,17 @@ variable "runtime" {
   default     = "nodejs20.x"
 }
 
+variable "architectures" {
+  type        = list(string)
+  description = "Instruction set for the function. arm64 (Graviton) is cheaper per GB-second; use x86_64 if a dependency has no arm64 build."
+  default     = ["x86_64"]
+
+  validation {
+    condition     = length(var.architectures) == 1 && alltrue([for a in var.architectures : contains(["x86_64", "arm64"], a)])
+    error_message = "architectures must be exactly one of [\"x86_64\"] or [\"arm64\"]. Lambda accepts a single architecture per function."
+  }
+}
+
 variable "memory_size" {
   type        = number
   description = "Memory in MB. Capped by the module as a cost guardrail; raise the cap in the module deliberately if a service genuinely needs more."

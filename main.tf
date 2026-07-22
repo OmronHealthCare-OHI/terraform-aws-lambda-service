@@ -30,6 +30,7 @@ resource "aws_lambda_function" "this" {
   function_name = local.function_name
   handler       = var.handler
   runtime       = var.runtime
+  architectures = var.architectures
   memory_size   = var.memory_size
   timeout       = var.timeout
   role          = aws_iam_role.exec.arn
