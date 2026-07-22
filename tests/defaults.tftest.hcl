@@ -69,11 +69,11 @@ run "boundary_applied_when_set" {
   command = plan
 
   variables {
-    permissions_boundary_arn = "arn:aws:iam::689344065739:policy/usnp-usw2-pipeline-permissions-boundary"
+    permissions_boundary_arn = "arn:aws:iam::123456789012:policy/usnp-usw2-pipeline-permissions-boundary"
   }
 
   assert {
-    condition     = aws_iam_role.exec.permissions_boundary == "arn:aws:iam::689344065739:policy/usnp-usw2-pipeline-permissions-boundary"
+    condition     = aws_iam_role.exec.permissions_boundary == "arn:aws:iam::123456789012:policy/usnp-usw2-pipeline-permissions-boundary"
     error_message = "The exec role must carry the boundary when one is supplied"
   }
 }
@@ -120,6 +120,48 @@ run "rejects_zero_reserved_concurrency" {
   expect_failures = [var.reserved_concurrent_executions]
 }
 
+run "defaults_to_x86_64" {
+  command = plan
+
+  assert {
+    condition     = aws_lambda_function.this.architectures == tolist(["x86_64"])
+    error_message = "Default architecture should be x86_64"
+  }
+}
+
+run "accepts_arm64" {
+  command = plan
+
+  variables {
+    architectures = ["arm64"]
+  }
+
+  assert {
+    condition     = aws_lambda_function.this.architectures == tolist(["arm64"])
+    error_message = "arm64 must be selectable"
+  }
+}
+
+run "rejects_multiple_architectures" {
+  command = plan
+
+  variables {
+    architectures = ["x86_64", "arm64"]
+  }
+
+  expect_failures = [var.architectures]
+}
+
+run "rejects_unknown_architecture" {
+  command = plan
+
+  variables {
+    architectures = ["i386"]
+  }
+
+  expect_failures = [var.architectures]
+}
+
 run "rejects_invalid_log_retention" {
   command = plan
 
@@ -134,17 +176,17 @@ run "kms_key_encrypts_function_and_logs_when_set" {
   command = plan
 
   variables {
-    kms_key_arn           = "arn:aws:kms:us-west-2:689344065739:key/test-key-id"
+    kms_key_arn           = "arn:aws:kms:us-west-2:123456789012:key/test-key-id"
     environment_variables = { LOG_LEVEL = "info" }
   }
 
   assert {
-    condition     = aws_lambda_function.this.kms_key_arn == "arn:aws:kms:us-west-2:689344065739:key/test-key-id"
+    condition     = aws_lambda_function.this.kms_key_arn == "arn:aws:kms:us-west-2:123456789012:key/test-key-id"
     error_message = "Function env vars must use the customer-managed KMS key when one is supplied"
   }
 
   assert {
-    condition     = aws_cloudwatch_log_group.this.kms_key_id == "arn:aws:kms:us-west-2:689344065739:key/test-key-id"
+    condition     = aws_cloudwatch_log_group.this.kms_key_id == "arn:aws:kms:us-west-2:123456789012:key/test-key-id"
     error_message = "Log group must use the customer-managed KMS key when one is supplied"
   }
 
@@ -156,7 +198,7 @@ run "kms_key_skips_function_when_no_env_vars" {
   command = plan
 
   variables {
-    kms_key_arn = "arn:aws:kms:us-west-2:689344065739:key/test-key-id"
+    kms_key_arn = "arn:aws:kms:us-west-2:123456789012:key/test-key-id"
   }
 
   assert {
@@ -165,7 +207,7 @@ run "kms_key_skips_function_when_no_env_vars" {
   }
 
   assert {
-    condition     = aws_cloudwatch_log_group.this.kms_key_id == "arn:aws:kms:us-west-2:689344065739:key/test-key-id"
+    condition     = aws_cloudwatch_log_group.this.kms_key_id == "arn:aws:kms:us-west-2:123456789012:key/test-key-id"
     error_message = "The log group must still use the CMK even when the function has no env vars"
   }
 
@@ -175,7 +217,7 @@ run "rejects_kms_alias_arn" {
   command = plan
 
   variables {
-    kms_key_arn = "arn:aws:kms:us-west-2:689344065739:alias/platform-lambda"
+    kms_key_arn = "arn:aws:kms:us-west-2:123456789012:alias/platform-lambda"
   }
 
   expect_failures = [var.kms_key_arn]
