@@ -1,14 +1,30 @@
 variable "service_name" {
   type        = string
   description = "Service name, used in resource naming"
+
+  validation {
+    condition     = can(regex("^[a-zA-Z0-9_-]+$", var.service_name))
+    error_message = "service_name may only contain letters, digits, hyphens and underscores — the characters Lambda and IAM accept in a name."
+  }
+
+  # The exec role name is the tightest limit: it adds 11 characters and IAM
+  # caps role names at 64.
+  validation {
+    condition     = length(var.name_prefix) + length(var.service_name) <= 53
+    error_message = "name_prefix and service_name are too long together: their combined length must be <= 53 so the derived execution role name \"<name_prefix>-cicd-<service_name>-exec\" fits IAM's 64-character limit."
+  }
 }
 
 variable "name_prefix" {
   type        = string
   description = "Prefix for resource names, e.g. an <env><region> code like myapp-euw1"
+
+  validation {
+    condition     = can(regex("^[a-zA-Z0-9_-]+$", var.name_prefix))
+    error_message = "name_prefix may only contain letters, digits, hyphens and underscores — the characters Lambda and IAM accept in a name."
+  }
 }
 
-# The exact build artifact to deploy, as produced by the build workflow.
 variable "artifact_bucket" {
   type        = string
   description = "S3 bucket holding the Lambda zip"
@@ -88,7 +104,7 @@ variable "log_retention_days" {
 
 variable "kms_key_arn" {
   type        = string
-  description = "Optional customer-managed KMS key ARN for the function's environment variables and its log group. Empty uses AWS-managed keys (still encrypted at rest). The key and its key policy are provided by the platform, not created here. IMPORTANT: the key policy MUST grant the CloudWatch Logs service principal (logs.<region>.amazonaws.com) kms:Encrypt*/Decrypt/ReEncrypt*/GenerateDataKey*/Describe*, or log-group creation fails at apply with AccessDeniedException."
+  description = "Optional customer-managed KMS key ARN for the function's environment variables and its log group. Empty uses AWS-managed keys (still encrypted at rest). The key and its key policy are provided by the platform, not created here. Applied to the function only when environment_variables is non-empty, since a CMK on the function encrypts nothing else; the log group always uses it. The module grants the execution role kms:Decrypt on the key when it is in use. IMPORTANT: the key policy MUST grant the CloudWatch Logs service principal (logs.<region>.amazonaws.com) kms:Encrypt*/Decrypt/ReEncrypt*/GenerateDataKey*/Describe*, or log-group creation fails at apply with AccessDeniedException."
   default     = ""
 }
 

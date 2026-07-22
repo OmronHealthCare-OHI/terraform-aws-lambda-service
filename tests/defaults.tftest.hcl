@@ -49,9 +49,7 @@ run "artifact_is_pinned_by_version" {
 run "runtime_permissions_are_inline_not_managed" {
   command = plan
 
-  # The deploy role cannot attach managed policies under the permissions
-  # boundary, only PutRolePolicy. The runtime permissions must therefore be an
-  # inline role policy. See ADR 002 in the deployment-workflows repo.
+  # See ADR 002 in the deployment-workflows repo.
   assert {
     condition     = aws_iam_role_policy.exec.name == "runtime"
     error_message = "Runtime permissions must be delivered as an inline role policy"
@@ -61,7 +59,6 @@ run "runtime_permissions_are_inline_not_managed" {
 run "no_boundary_when_unset" {
   command = plan
 
-  # permissions_boundary_arn defaults to "", so the attribute must be null.
   assert {
     condition     = aws_iam_role.exec.permissions_boundary == null
     error_message = "The exec role must carry no boundary when none is supplied"
@@ -81,7 +78,7 @@ run "boundary_applied_when_set" {
   }
 }
 
-# --- Guardrail caps: values outside the module's limits must be rejected ---
+# --- Guardrail caps: out-of-range values must be rejected ---
 
 run "rejects_oversized_memory" {
   command = plan
@@ -127,7 +124,8 @@ run "kms_key_encrypts_function_and_logs_when_set" {
   command = plan
 
   variables {
-    kms_key_arn = "arn:aws:kms:us-west-2:689344065739:key/test-key-id"
+    kms_key_arn           = "arn:aws:kms:us-west-2:689344065739:key/test-key-id"
+    environment_variables = { LOG_LEVEL = "info" }
   }
 
   assert {
@@ -139,4 +137,59 @@ run "kms_key_encrypts_function_and_logs_when_set" {
     condition     = aws_cloudwatch_log_group.this.kms_key_id == "arn:aws:kms:us-west-2:689344065739:key/test-key-id"
     error_message = "Log group must use the customer-managed KMS key when one is supplied"
   }
+
+  # NOTE: the role's kms:Decrypt grant cannot be asserted here. The policy JSON
+  # depends on the log group ARN, which the mock provider leaves unknown at plan.
+}
+
+run "kms_key_skips_function_when_no_env_vars" {
+  command = plan
+
+  variables {
+    kms_key_arn = "arn:aws:kms:us-west-2:689344065739:key/test-key-id"
+  }
+
+  assert {
+    condition     = aws_lambda_function.this.kms_key_arn == null
+    error_message = "The function must not carry a KMS key when it has no environment variables"
+  }
+
+  assert {
+    condition     = aws_cloudwatch_log_group.this.kms_key_id == "arn:aws:kms:us-west-2:689344065739:key/test-key-id"
+    error_message = "The log group must still use the CMK even when the function has no env vars"
+  }
+
+}
+
+# --- Naming: the exec role name must fit IAM's 64-character limit ---
+
+run "rejects_names_too_long_for_the_exec_role" {
+  command = plan
+
+  variables {
+    name_prefix  = "prodeuw1-platform-services"
+    service_name = "document-ingestion-processor"
+  }
+
+  expect_failures = [var.service_name]
+}
+
+run "rejects_invalid_characters_in_service_name" {
+  command = plan
+
+  variables {
+    service_name = "hello.service"
+  }
+
+  expect_failures = [var.service_name]
+}
+
+run "rejects_invalid_characters_in_name_prefix" {
+  command = plan
+
+  variables {
+    name_prefix = "usnp usw2"
+  }
+
+  expect_failures = [var.name_prefix]
 }

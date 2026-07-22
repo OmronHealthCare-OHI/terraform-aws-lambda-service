@@ -9,38 +9,27 @@ secrets-history-timeout: 12h
 secrets-scan-file-type: []
 skip-results-upload: true
 skip-check:
-  # Disabled CKV_TF_1 as there is a risk with using tags, but the readability is better with tags vs commit hash
-  # https://docs.prismacloud.io/en/enterprise-edition/policy-reference/supply-chain-policies/terraform-policies/ensure-terraform-module-sources-use-git-url-with-commit-hash-revision
+  # Tags read better than commit hashes for module sources.
   - CKV_TF_1
-  # Disabled CKV_TF_2 as we are using the terraform standard for module version
+  # We use the terraform standard for module versions.
   - CKV_TF_2
-  # Disabled CKV_AWS_260 to allow port 80 connections to the LB, as the listener redirects requests from 80 to 443
-  # https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/ensure-aws-security-groups-do-not-allow-ingress-from-00000-to-port-80
-  - CKV_AWS_260
-  # Top-level permissions for GitHub Actions are allowed to be write-all for now
+  # Top-level GitHub Actions permissions may be write-all for now.
   - CKV2_GHA_1
-  # --- lambda-service module: conscious skips for a minimal serverless module ---
-  # Reserved concurrency is a per-service capacity decision; reserving from the
-  # shared account pool by default is undesirable. Revisit with the config caps.
+  # --- lambda-service: conscious skips ---
+  # Reserved concurrency is a per-service capacity decision.
   - CKV_AWS_115
-  # A dead-letter queue target (SQS/SNS) is application-specific; the module stays
-  # generic and a service adds one through its own infrastructure.
+  # A dead-letter queue target is application-specific.
   - CKV_AWS_116
-  # These services are not VPC-bound by default; forcing vpc_config would break
-  # the common serverless case.
+  # These functions are not VPC-bound; vpc_config would break the common case.
   - CKV_AWS_117
-  # X-Ray tracing is opt-in observability, enabled per service when needed.
+  # X-Ray tracing is opt-in, enabled per service.
   - CKV_AWS_50
-  # CloudWatch Logs are encrypted at rest with AWS-managed keys; a customer-managed
-  # KMS key is not required for the interim and adds key management.
+  # A CMK is optional (kms_key_arn); AWS-managed keys are the default.
   - CKV_AWS_158
-  # Env vars are encrypted at rest by default; a customer-managed KMS key is not
-  # required and would add a KMS dependency.
   - CKV_AWS_173
-  # Code signing needs a signing-profile pipeline that is out of scope for now.
+  # Code signing needs a signing-profile pipeline, out of scope for now.
   - CKV_AWS_272
-  # Log retention is a deliberate, configurable choice (log_retention_days); the
-  # one-year minimum does not fit every service.
+  # Retention is configurable (log_retention_days); one year does not fit all.
   - CKV_AWS_338
 
 summary-position: top

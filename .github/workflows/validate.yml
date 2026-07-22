@@ -68,13 +68,11 @@ jobs:
         id: checkov
         uses: bridgecrewio/checkov-action@v12
         with:
-          # CLI output to the console only (no SARIF file is produced with this config)
           output_format: cli
           output_file_path: console
           config_file: .checkov-config.yml
 
-      # fmt and test run with continue-on-error so results/artifacts still publish;
-      # this gate then fails the job if either did not succeed.
+      # fmt and test use continue-on-error so results still publish; fail here.
       - name: Fail on format or test errors
         if: steps.tf-fmt.outcome != 'success' || steps.tf-test.outcome != 'success'
         run: |

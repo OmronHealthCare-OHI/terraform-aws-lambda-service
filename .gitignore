@@ -3,7 +3,7 @@
 .vscode/
 .DS_Store
 
-# Terraform working files (from running examples/tests locally)
+# Terraform working files
 **/.terraform/
 *.tfstate
 *.tfstate.*
@@ -16,10 +16,9 @@ override.tf.json
 *_override.tf
 *_override.tf.json
 
-# Note: .terraform.lock.hcl is committed on purpose in examples
-# (it pins provider versions for reproducible plans).
+# .terraform.lock.hcl is committed on purpose: it pins provider versions.
 
-# Local env files (never commit real values; .env.example is the reference)
+# Local env files
 .env
 .env.*
 !.env.example

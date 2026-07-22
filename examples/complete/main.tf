@@ -1,4 +1,3 @@
-# Complete example: every input shown, with realistic values.
 provider "aws" {
   region              = "us-west-2"
   allowed_account_ids = ["123456789012"]

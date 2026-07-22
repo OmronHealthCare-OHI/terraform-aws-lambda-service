@@ -11,15 +11,15 @@ terraform {
 locals {
   function_name = "${var.name_prefix}-${var.service_name}"
 
-  # IAM roles created by the pipeline must be named "<prefix>-cicd-*": the
-  # pipeline's permissions boundary only permits creating/managing/passing
-  # roles under that path. So the execution role goes under -cicd-, even
-  # though the function name itself does not need to.
+  # The boundary only lets the pipeline create roles named "<prefix>-cicd-*".
   exec_role_name = "${var.name_prefix}-cicd-${var.service_name}-exec"
+
+  # On the function a CMK encrypts only env vars, so skip it when there are
+  # none: the key would encrypt nothing and drift on every plan.
+  function_kms_key_arn  = var.kms_key_arn != "" && length(var.environment_variables) > 0 ? var.kms_key_arn : null
+  log_group_kms_key_arn = var.kms_key_arn != "" ? var.kms_key_arn : null
 }
 
-# The function. s3_object_version pins the exact zip the build produced:
-# a deploy can never silently pick up a different artifact.
 resource "aws_lambda_function" "this" {
   function_name = local.function_name
   handler       = var.handler
@@ -28,7 +28,7 @@ resource "aws_lambda_function" "this" {
   timeout       = var.timeout
   role          = aws_iam_role.exec.arn
 
-  kms_key_arn = var.kms_key_arn != "" ? var.kms_key_arn : null
+  kms_key_arn = local.function_kms_key_arn
 
   reserved_concurrent_executions = var.reserved_concurrent_executions
 
@@ -36,8 +36,6 @@ resource "aws_lambda_function" "this" {
   s3_key            = var.artifact_key
   s3_object_version = var.artifact_version
 
-  # Every deploy publishes an immutable version; the alias below points
-  # at it. Rollback = repoint the alias, near-instant.
   publish = true
 
   dynamic "environment" {
@@ -55,17 +53,13 @@ resource "aws_lambda_function" "this" {
   ]
 }
 
-# The stable address consumers invoke. Traffic follows this alias,
-# which is what makes instant rollback possible.
+# The stable address consumers invoke. Repointing it is an instant rollback.
 resource "aws_lambda_alias" "live" {
   name             = "live"
   function_name    = aws_lambda_function.this.function_name
   function_version = aws_lambda_function.this.version
 }
 
-# Runtime role: what the function may do while running. Named under -cicd-
-# and carrying the pipeline permissions boundary, because the deploy role
-# that creates it may only create boundary-bound cicd-* roles.
 resource "aws_iam_role" "exec" {
   name                 = local.exec_role_name
   permissions_boundary = var.permissions_boundary_arn != "" ? var.permissions_boundary_arn : null
@@ -82,12 +76,8 @@ resource "aws_iam_role" "exec" {
   tags = var.extra_tags
 }
 
-# Runtime permissions as a single INLINE policy (not a managed-policy
-# attachment): the deploy role is not allowed iam:AttachRolePolicy under the
-# permissions boundary, only iam:PutRolePolicy. Starts with logs (the
-# equivalent of AWSLambdaBasicExecutionRole, scoped to this function's log
-# group); extra permissions are merged in from extra_policy_json so they stay
-# explicit in the consumer's code. See ADR 002 in Omron-Deployment-Workflows.
+# Inline, not a managed-policy attachment: the boundary forbids
+# iam:AttachRolePolicy. See ADR 002 in Omron-Deployment-Workflows.
 data "aws_iam_policy_document" "exec" {
   statement {
     sid    = "Logs"
@@ -100,8 +90,18 @@ data "aws_iam_policy_document" "exec" {
     resources = ["${aws_cloudwatch_log_group.this.arn}:*"]
   }
 
-  # Optional: additional runtime permissions, supplied as an IAM policy
-  # document JSON (e.g. rendered from a dynamodb-table module output).
+  # Lambda decrypts env vars with this role, not the service principal.
+  # Without it every invocation fails.
+  dynamic "statement" {
+    for_each = local.function_kms_key_arn != null ? [1] : []
+    content {
+      sid       = "DecryptEnvironmentVariables"
+      effect    = "Allow"
+      actions   = ["kms:Decrypt"]
+      resources = [local.function_kms_key_arn]
+    }
+  }
+
   source_policy_documents = var.extra_policy_json != "" ? [var.extra_policy_json] : []
 }
 
@@ -111,10 +111,9 @@ resource "aws_iam_role_policy" "exec" {
   policy = data.aws_iam_policy_document.exec.json
 }
 
-# NOTE: when kms_key_arn is set, this group is created encrypted with that CMK
 resource "aws_cloudwatch_log_group" "this" {
   name              = "/aws/lambda/${local.function_name}"
   retention_in_days = var.log_retention_days
-  kms_key_id        = var.kms_key_arn != "" ? var.kms_key_arn : null
+  kms_key_id        = local.log_group_kms_key_arn
   tags              = var.extra_tags
 }
