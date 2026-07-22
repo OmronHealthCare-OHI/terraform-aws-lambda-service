@@ -13,11 +13,10 @@ module "service" {
   service_name = "hello-service"
   name_prefix  = "myapp-euw1" # <env><region>-style prefix used in resource names
 
-  # Required when the caller (e.g. a CI deploy role) may only create IAM roles
-  # that carry a permissions boundary. Leave unset when applying without one.
+  # Required when the deploy role may only create boundary-bound roles.
   permissions_boundary_arn = var.permissions_boundary_arn
 
-  # The exact build artifact to deploy (produced by your build/CI):
+  # The exact artifact to deploy, from your build.
   artifact_bucket  = var.artifact_bucket
   artifact_key     = var.artifact_key
   artifact_version = var.artifact_version
@@ -34,11 +33,24 @@ Pin an exact `?ref=` tag. Never reference `main`. Full input list in
 - A `live` alias pointing at that version — invoke the alias, never the
   function directly. Rollback = repoint the alias (near-instant).
 - A runtime role (`{name_prefix}-cicd-{service_name}-exec`, carrying the
-  permissions boundary when provided) that can only write logs by default.
-  Extra permissions are added via an **inline** policy from `extra_policy_json`
-  — managed-policy attachment is deliberately not used, so the module works
-  under permission boundaries that forbid `iam:AttachRolePolicy`.
+  permissions boundary when provided) that can write logs and nothing else.
+  Add permissions via `extra_policy_json`; it becomes an **inline** policy,
+  because boundaries here forbid `iam:AttachRolePolicy`. Statements merge by
+  `sid` — avoid `LambdaServiceLogs` and `LambdaServiceDecryptEnvVars`.
 - A CloudWatch log group with configurable retention (default 30 days).
+
+## Encryption
+
+`kms_key_arn` is optional — empty still encrypts at rest with AWS-managed keys.
+When set:
+
+- Must be the **key ARN**, not an alias or bare key ID. IAM does not resolve
+  those, so the role's `kms:Decrypt` grant would authorize nothing.
+- The **key policy must grant `logs.<region>.amazonaws.com`** `kms:Encrypt*`,
+  `kms:Decrypt`, `kms:ReEncrypt*`, `kms:GenerateDataKey*` and `kms:Describe*`,
+  or log-group creation fails with `AccessDeniedException`.
+- The log group always uses it; the function only when `environment_variables`
+  is set, and the role then gets `kms:Decrypt`.
 
 ## Inputs & outputs
 
@@ -51,6 +63,8 @@ tags (`team`, `service`, `stage`) come from the caller's provider
 
 - Required inputs: `service_name`, `name_prefix`.
 - Resource names: `{name_prefix}-{service_name}[-suffix]`.
+- Letters, digits, hyphens and underscores only, **53 characters combined** —
+  the derived role name must fit IAM's 64-character cap.
 - Breaking changes only in a new major version — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Ownership

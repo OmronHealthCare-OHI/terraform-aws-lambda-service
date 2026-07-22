@@ -110,6 +110,16 @@ run "rejects_excessive_reserved_concurrency" {
   expect_failures = [var.reserved_concurrent_executions]
 }
 
+run "rejects_zero_reserved_concurrency" {
+  command = plan
+
+  variables {
+    reserved_concurrent_executions = 0
+  }
+
+  expect_failures = [var.reserved_concurrent_executions]
+}
+
 run "rejects_invalid_log_retention" {
   command = plan
 
@@ -159,6 +169,26 @@ run "kms_key_skips_function_when_no_env_vars" {
     error_message = "The log group must still use the CMK even when the function has no env vars"
   }
 
+}
+
+run "rejects_kms_alias_arn" {
+  command = plan
+
+  variables {
+    kms_key_arn = "arn:aws:kms:us-west-2:689344065739:alias/platform-lambda"
+  }
+
+  expect_failures = [var.kms_key_arn]
+}
+
+run "rejects_bare_kms_key_id" {
+  command = plan
+
+  variables {
+    kms_key_arn = "1234abcd-12ab-34cd-56ef-1234567890ab"
+  }
+
+  expect_failures = [var.kms_key_arn]
 }
 
 # --- Naming: the exec role name must fit IAM's 64-character limit ---

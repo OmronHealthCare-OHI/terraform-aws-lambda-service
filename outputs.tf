@@ -13,6 +13,11 @@ output "live_alias_arn" {
   value       = aws_lambda_alias.live.arn
 }
 
+output "live_alias_invoke_arn" {
+  description = "Invoke ARN of the live alias, for API Gateway and EventBridge targets"
+  value       = aws_lambda_alias.live.invoke_arn
+}
+
 output "published_version" {
   description = "The immutable version this deploy published"
   value       = aws_lambda_function.this.version
@@ -21,4 +26,9 @@ output "published_version" {
 output "exec_role_name" {
   description = "Runtime role name, for attaching further policies"
   value       = aws_iam_role.exec.name
+}
+
+output "exec_role_arn" {
+  description = "Runtime role ARN, for iam:PassRole conditions and trust policies"
+  value       = aws_iam_role.exec.arn
 }

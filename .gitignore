@@ -2,6 +2,7 @@
 .idea/
 .vscode/
 .DS_Store
+.claude
 
 # Terraform working files
 **/.terraform/
@@ -16,7 +17,9 @@ override.tf.json
 *_override.tf
 *_override.tf.json
 
-# .terraform.lock.hcl is committed on purpose: it pins provider versions.
+# The root .terraform.lock.hcl is committed to pin providers. Examples are
+# validate-only and not covered by dependabot, so theirs would go stale.
+examples/**/.terraform.lock.hcl
 
 # Local env files
 .env

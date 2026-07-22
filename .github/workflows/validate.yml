@@ -79,3 +79,27 @@ jobs:
           echo "terraform fmt outcome:  ${{ steps.tf-fmt.outcome }}"
           echo "terraform test outcome: ${{ steps.tf-test.outcome }}"
           exit 1
+
+  # Each example is its own root module, so the job above never loads them.
+  examples:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read # for actions/checkout to fetch code
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.GH_TOKEN }}
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+      - name: Terraform validate examples
+        run: |
+          for dir in examples/*/; do
+            echo "::group::${dir}"
+            terraform -chdir="${dir}" init -backend=false -no-color
+            terraform -chdir="${dir}" validate -no-color
+            echo "::endgroup::"
+          done

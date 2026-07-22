@@ -1,4 +1,4 @@
-name: Pre-release (test deployment)
+name: Draft Release
 on:
   push:
     branches:
@@ -9,19 +9,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  administration:
+  draft_release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: read
     steps:
       - name: Draft Release
-        id: draft-release
         uses: release-drafter/release-drafter@v7
         with:
           disable-autolabeler: true
           publish: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    outputs:
-      tag_name: ${{ steps.draft-release.outputs.tag_name }}

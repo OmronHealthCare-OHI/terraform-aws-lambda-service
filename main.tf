@@ -14,10 +14,16 @@ locals {
   # The boundary only lets the pipeline create roles named "<prefix>-cicd-*".
   exec_role_name = "${var.name_prefix}-cicd-${var.service_name}-exec"
 
+  has_env_vars = length(var.environment_variables) > 0
+
+  # Optional inputs use "" as the unset sentinel; normalise to null here.
+  kms_key_arn              = var.kms_key_arn != "" ? var.kms_key_arn : null
+  permissions_boundary_arn = var.permissions_boundary_arn != "" ? var.permissions_boundary_arn : null
+  extra_policy_documents   = var.extra_policy_json != "" ? [var.extra_policy_json] : []
+
   # On the function a CMK encrypts only env vars, so skip it when there are
   # none: the key would encrypt nothing and drift on every plan.
-  function_kms_key_arn  = var.kms_key_arn != "" && length(var.environment_variables) > 0 ? var.kms_key_arn : null
-  log_group_kms_key_arn = var.kms_key_arn != "" ? var.kms_key_arn : null
+  function_kms_key_arn = local.has_env_vars ? local.kms_key_arn : null
 }
 
 resource "aws_lambda_function" "this" {
@@ -39,7 +45,7 @@ resource "aws_lambda_function" "this" {
   publish = true
 
   dynamic "environment" {
-    for_each = length(var.environment_variables) > 0 ? [1] : []
+    for_each = local.has_env_vars ? [1] : []
     content {
       variables = var.environment_variables
     }
@@ -62,7 +68,7 @@ resource "aws_lambda_alias" "live" {
 
 resource "aws_iam_role" "exec" {
   name                 = local.exec_role_name
-  permissions_boundary = var.permissions_boundary_arn != "" ? var.permissions_boundary_arn : null
+  permissions_boundary = local.permissions_boundary_arn
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -80,10 +86,11 @@ resource "aws_iam_role" "exec" {
 # iam:AttachRolePolicy. See ADR 002 in Omron-Deployment-Workflows.
 data "aws_iam_policy_document" "exec" {
   statement {
-    sid    = "Logs"
+    sid    = "LambdaServiceLogs"
     effect = "Allow"
+    # No logs:CreateLogGroup: the group is managed here, and granting it would
+    # let Lambda silently recreate it without the CMK or retention.
     actions = [
-      "logs:CreateLogGroup",
       "logs:CreateLogStream",
       "logs:PutLogEvents",
     ]
@@ -95,14 +102,14 @@ data "aws_iam_policy_document" "exec" {
   dynamic "statement" {
     for_each = local.function_kms_key_arn != null ? [1] : []
     content {
-      sid       = "DecryptEnvironmentVariables"
+      sid       = "LambdaServiceDecryptEnvVars"
       effect    = "Allow"
       actions   = ["kms:Decrypt"]
       resources = [local.function_kms_key_arn]
     }
   }
 
-  source_policy_documents = var.extra_policy_json != "" ? [var.extra_policy_json] : []
+  source_policy_documents = local.extra_policy_documents
 }
 
 resource "aws_iam_role_policy" "exec" {
@@ -114,6 +121,6 @@ resource "aws_iam_role_policy" "exec" {
 resource "aws_cloudwatch_log_group" "this" {
   name              = "/aws/lambda/${local.function_name}"
   retention_in_days = var.log_retention_days
-  kms_key_id        = local.log_group_kms_key_arn
+  kms_key_id        = local.kms_key_arn
   tags              = var.extra_tags
 }

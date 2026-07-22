@@ -104,8 +104,13 @@ variable "log_retention_days" {
 
 variable "kms_key_arn" {
   type        = string
-  description = "Optional customer-managed KMS key ARN for the function's environment variables and its log group. Empty uses AWS-managed keys (still encrypted at rest). The key and its key policy are provided by the platform, not created here. Applied to the function only when environment_variables is non-empty, since a CMK on the function encrypts nothing else; the log group always uses it. The module grants the execution role kms:Decrypt on the key when it is in use. IMPORTANT: the key policy MUST grant the CloudWatch Logs service principal (logs.<region>.amazonaws.com) kms:Encrypt*/Decrypt/ReEncrypt*/GenerateDataKey*/Describe*, or log-group creation fails at apply with AccessDeniedException."
+  description = "Optional customer-managed key ARN for the log group and, when environment_variables is set, the function's env vars. Empty uses AWS-managed keys. The key is provided by the platform, not created here, and its key policy must grant the CloudWatch Logs service principal access — see the README."
   default     = ""
+
+  validation {
+    condition     = var.kms_key_arn == "" || can(regex("^arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:key/[a-zA-Z0-9-]+$", var.kms_key_arn))
+    error_message = "kms_key_arn must be a KMS key ARN like arn:aws:kms:<region>:<account>:key/<key-id>. Alias ARNs and bare key IDs are rejected: IAM does not resolve them, so the execution role's kms:Decrypt grant would not apply."
+  }
 }
 
 variable "permissions_boundary_arn" {
@@ -116,7 +121,7 @@ variable "permissions_boundary_arn" {
 
 variable "extra_policy_json" {
   type        = string
-  description = "Optional additional runtime permissions as an IAM policy document JSON (merged into the role's inline policy). Use instead of attaching managed policies, which the permissions boundary forbids. Example: data.aws_iam_policy_document.dynamo.json"
+  description = "Optional additional runtime permissions as an IAM policy document JSON (merged into the role's inline policy). Use instead of attaching managed policies, which the permissions boundary forbids. Example: data.aws_iam_policy_document.dynamo.json. Statements are merged by sid, so avoid the module's own: LambdaServiceLogs and LambdaServiceDecryptEnvVars."
   default     = ""
 }
 
