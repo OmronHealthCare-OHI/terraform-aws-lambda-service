@@ -28,16 +28,31 @@ variable "name_prefix" {
 variable "artifact_bucket" {
   type        = string
   description = "S3 bucket holding the Lambda zip"
+
+  validation {
+    condition     = length(trimspace(var.artifact_bucket)) > 0
+    error_message = "artifact_bucket must be non-empty."
+  }
 }
 
 variable "artifact_key" {
   type        = string
   description = "S3 key of the Lambda zip"
+
+  validation {
+    condition     = length(trimspace(var.artifact_key)) > 0
+    error_message = "artifact_key must be non-empty."
+  }
 }
 
 variable "artifact_version" {
   type        = string
   description = "S3 object version: pins the exact zip that was built"
+
+  validation {
+    condition     = length(trimspace(var.artifact_version)) > 0
+    error_message = "artifact_version must be a non-empty S3 object version ID"
+  }
 }
 
 variable "handler" {

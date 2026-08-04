@@ -265,3 +265,33 @@ run "rejects_invalid_characters_in_name_prefix" {
 
   expect_failures = [var.name_prefix]
 }
+
+run "rejects_empty_artifact_version" {
+  command = plan
+
+  variables {
+    artifact_version = ""
+  }
+
+  expect_failures = [var.artifact_version]
+}
+
+run "rejects_empty_artifact_bucket" {
+  command = plan
+
+  variables {
+    artifact_bucket = ""
+  }
+
+  expect_failures = [var.artifact_bucket]
+}
+
+run "rejects_empty_artifact_key" {
+  command = plan
+
+  variables {
+    artifact_key = ""
+  }
+
+  expect_failures = [var.artifact_key]
+}

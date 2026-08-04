@@ -52,10 +52,12 @@ labels:
   - label: examples
     files:
       - "examples\\/.*"
+  # Root-only: RE2 has no negative lookahead, so "any .tf except examples/"
+  # would silently match nothing.
   - label: "infrastructure"
     files:
-      - "^(?!examples\\/).*\\.tf$"
-      - "^(?!examples\\/).*\\.tfvars$"
+      - "^[^/]+\\.tf$"
+      - "^[^/]+\\.tfvars$"
   - label: "build definition"
     files:
       - "\\.github\\/workflows\\/.*\\.yml"
