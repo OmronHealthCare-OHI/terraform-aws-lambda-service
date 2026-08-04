@@ -143,6 +143,14 @@ variable "permissions_boundary_arn" {
   type        = string
   description = "Pipeline permissions boundary. Required on the execution role: the deploy role that creates it may only create boundary-bound cicd-* roles. Leave empty only when applying outside the pipeline."
   default     = ""
+
+  # This input decides whether the role is bounded at all, so a typo must not
+  # pass silently as "unbounded". The account field also accepts "aws" so an
+  # AWS-managed policy can be used as the boundary.
+  validation {
+    condition     = var.permissions_boundary_arn == "" || can(regex("^arn:aws[a-z-]*:iam::([0-9]{12}|aws):policy/.+$", var.permissions_boundary_arn))
+    error_message = "permissions_boundary_arn must be empty or an IAM policy ARN like arn:aws:iam::<account>:policy/<name>. Role ARNs, truncated ARNs and bare policy names are rejected: the role would be created unbounded."
+  }
 }
 
 variable "extra_policy_json" {
