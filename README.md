@@ -52,12 +52,105 @@ AWS-managed keys. When set:
 - The log group always uses it; the function only when `environment_variables`
   is set, and the role then gets `kms:Decrypt`.
 
+## Lifecycle
+
+### Renaming a service
+
+`service_name` and `name_prefix` feed the function, role and log group names, so
+changing either replaces all three. The log group is created with
+`skip_destroy`, so a rename **keeps** the old group and its history rather than
+deleting it. Two consequences:
+
+- The old group is left behind unmanaged. Remove it by hand once you no longer
+  need the history.
+- Renaming *back* to a name you used before fails, because the orphaned group
+  still holds it. Delete or import that group first.
+
+### Adopting a function that already exists
+
+Lambda creates `/aws/lambda/<function>` itself on first invocation. If the
+function ran before it was managed here, that group already exists and the first
+apply fails with `ResourceAlreadyExistsException`. Import it before applying:
+
+```sh
+terraform import \
+  'module.service.aws_cloudwatch_log_group.this' \
+  '/aws/lambda/myapp-euw1-hello-service'
+```
+
 ## Inputs & outputs
 
-See [`variables.tf`](variables.tf) and [`outputs.tf`](outputs.tf). The three
-`artifact_*` inputs come from whatever builds and uploads your Lambda zip;
-tags (`team`, `service`, `stage`) come from the caller's provider
+The three `artifact_*` inputs come from whatever builds and uploads your Lambda
+zip; tags (`team`, `service`, `stage`) come from the caller's provider
 `default_tags`.
+
+<!-- BEGIN_TF_DOCS -->
+### Requirements
+
+| Name | Version |
+|------|---------|
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.9.0 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 5.0 |
+
+### Providers
+
+| Name | Version |
+|------|---------|
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.55.0 |
+
+### Modules
+
+No modules.
+
+### Resources
+
+| Name | Type |
+|------|------|
+| [aws_cloudwatch_log_group.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_group) | resource |
+| [aws_iam_role.exec](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
+| [aws_iam_role_policy.exec](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy) | resource |
+| [aws_lambda_alias.live](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_alias) | resource |
+| [aws_lambda_function.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_function) | resource |
+| [aws_iam_policy_document.exec](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
+
+### Inputs
+
+| Name | Description | Type | Default | Required |
+|------|-------------|------|---------|:--------:|
+| <a name="input_architectures"></a> [architectures](#input\_architectures) | Instruction set for the function. arm64 (Graviton) is cheaper per GB-second; use x86\_64 if a dependency has no arm64 build. | `list(string)` | <pre>[<br/>  "x86_64"<br/>]</pre> | no |
+| <a name="input_artifact_bucket"></a> [artifact\_bucket](#input\_artifact\_bucket) | S3 bucket holding the Lambda zip | `string` | n/a | yes |
+| <a name="input_artifact_key"></a> [artifact\_key](#input\_artifact\_key) | S3 key of the Lambda zip | `string` | n/a | yes |
+| <a name="input_artifact_version"></a> [artifact\_version](#input\_artifact\_version) | S3 object version: pins the exact zip that was built | `string` | n/a | yes |
+| <a name="input_environment_variables"></a> [environment\_variables](#input\_environment\_variables) | Environment variables for the function | `map(string)` | `{}` | no |
+| <a name="input_extra_policy_json"></a> [extra\_policy\_json](#input\_extra\_policy\_json) | Optional additional runtime permissions as an IAM policy document JSON (merged into the role's inline policy). Use instead of attaching managed policies, which the permissions boundary forbids. Example: data.aws\_iam\_policy\_document.dynamo.json. Statements are merged by sid, so avoid the module's own: LambdaServiceLogs and LambdaServiceDecryptEnvVars. | `string` | `""` | no |
+| <a name="input_extra_tags"></a> [extra\_tags](#input\_extra\_tags) | Additional tags beyond the provider default\_tags | `map(string)` | `{}` | no |
+| <a name="input_handler"></a> [handler](#input\_handler) | Function entry point, e.g. handler.lambdaHandler | `string` | `"handler.lambdaHandler"` | no |
+| <a name="input_kms_key_arn"></a> [kms\_key\_arn](#input\_kms\_key\_arn) | Optional customer-managed key ARN for the log group and, when environment\_variables is set, the function's env vars. Empty uses AWS-managed keys. The key is provided by the platform, not created here, and its key policy must grant the CloudWatch Logs service principal access — see the README. | `string` | `""` | no |
+| <a name="input_log_retention_days"></a> [log\_retention\_days](#input\_log\_retention\_days) | How long CloudWatch keeps the logs. Must be a value CloudWatch Logs accepts. | `number` | `30` | no |
+| <a name="input_memory_size"></a> [memory\_size](#input\_memory\_size) | Memory in MB. Capped by the module as a cost guardrail; raise the cap in the module deliberately if a service genuinely needs more. | `number` | `256` | no |
+| <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix for resource names, e.g. an <env><region> code like myapp-euw1 | `string` | n/a | yes |
+| <a name="input_permissions_boundary_arn"></a> [permissions\_boundary\_arn](#input\_permissions\_boundary\_arn) | Pipeline permissions boundary. Required on the execution role: the deploy role that creates it may only create boundary-bound cicd-* roles. Leave empty only when applying outside the pipeline. | `string` | `""` | no |
+| <a name="input_reserved_concurrent_executions"></a> [reserved\_concurrent\_executions](#input\_reserved\_concurrent\_executions) | Ceiling on the function's concurrent executions (the Lambda autoscaling limit). -1 leaves it unreserved. The module caps how much a single service may reserve from the shared account pool. | `number` | `-1` | no |
+| <a name="input_runtime"></a> [runtime](#input\_runtime) | Lambda runtime | `string` | `"nodejs20.x"` | no |
+| <a name="input_service_name"></a> [service\_name](#input\_service\_name) | Service name, used in resource naming | `string` | n/a | yes |
+| <a name="input_timeout"></a> [timeout](#input\_timeout) | Timeout in seconds. Capped by the module so a runaway invocation cannot run, and bill, for the full 15 minutes. | `number` | `10` | no |
+
+### Outputs
+
+| Name | Description |
+|------|-------------|
+| <a name="output_alias_name"></a> [alias\_name](#output\_alias\_name) | Name of the alias consumers invoke, for aws lambda invoke --qualifier and rollback tooling |
+| <a name="output_exec_role_arn"></a> [exec\_role\_arn](#output\_exec\_role\_arn) | Runtime role ARN, for iam:PassRole conditions and trust policies |
+| <a name="output_exec_role_name"></a> [exec\_role\_name](#output\_exec\_role\_name) | Runtime role name, for attaching further policies |
+| <a name="output_function_arn"></a> [function\_arn](#output\_function\_arn) | ARN of the function (unqualified) |
+| <a name="output_function_name"></a> [function\_name](#output\_function\_name) | Name of the Lambda function |
+| <a name="output_live_alias_arn"></a> [live\_alias\_arn](#output\_live\_alias\_arn) | ARN of the live alias: invoke THIS, it enables instant rollback |
+| <a name="output_live_alias_invoke_arn"></a> [live\_alias\_invoke\_arn](#output\_live\_alias\_invoke\_arn) | Invoke ARN of the live alias, for API Gateway and EventBridge targets |
+| <a name="output_log_group_arn"></a> [log\_group\_arn](#output\_log\_group\_arn) | ARN of the log group this module owns, for alarms and cross-account log destinations |
+| <a name="output_log_group_name"></a> [log\_group\_name](#output\_log\_group\_name) | Name of the log group this module owns, for metric filters and subscription filters |
+| <a name="output_published_version"></a> [published\_version](#output\_published\_version) | The immutable version this deploy published |
+| <a name="output_qualified_arn"></a> [qualified\_arn](#output\_qualified\_arn) | ARN of the published version, for pinning an event source to an exact version instead of the alias |
+<!-- END_TF_DOCS -->
 
 ## Conventions
 

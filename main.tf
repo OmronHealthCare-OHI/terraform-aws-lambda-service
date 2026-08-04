@@ -123,5 +123,9 @@ resource "aws_cloudwatch_log_group" "this" {
   name              = "/aws/lambda/${local.function_name}"
   retention_in_days = var.log_retention_days
   kms_key_id        = local.kms_key_arn
-  tags              = var.extra_tags
+
+  # A rename would otherwise destroy the log history, and the role has no
+  # logs:CreateLogGroup to recreate the group.
+  skip_destroy = true
+  tags         = var.extra_tags
 }
