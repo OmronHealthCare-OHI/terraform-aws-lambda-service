@@ -1,0 +1,24 @@
+name: Draft Release
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ci-pre-release
+  cancel-in-progress: true
+
+jobs:
+  draft_release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - name: Draft Release
+        uses: release-drafter/release-drafter@v7
+        with:
+          disable-autolabeler: true
+          publish: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,35 @@
+block-list-secret-scan: []
+branch: main
+download-external-modules: true
+evaluate-variables: true
+external-modules-download-path: .external_modules
+mask: []
+quiet: true
+secrets-history-timeout: 12h
+secrets-scan-file-type: []
+skip-results-upload: true
+skip-check:
+  # Tags read better than commit hashes for module sources.
+  - CKV_TF_1
+  # We use the terraform standard for module versions.
+  - CKV_TF_2
+  # Top-level GitHub Actions permissions may be write-all for now.
+  - CKV2_GHA_1
+  # --- lambda-service: conscious skips ---
+  # Reserved concurrency is a per-service capacity decision.
+  - CKV_AWS_115
+  # A dead-letter queue target is application-specific.
+  - CKV_AWS_116
+  # These functions are not VPC-bound; vpc_config would break the common case.
+  - CKV_AWS_117
+  # X-Ray tracing is opt-in, enabled per service.
+  - CKV_AWS_50
+  # A CMK is optional (kms_key_arn); AWS-managed keys are the default.
+  - CKV_AWS_158
+  - CKV_AWS_173
+  # Code signing needs a signing-profile pipeline, out of scope for now.
+  - CKV_AWS_272
+  # Retention is configurable (log_retention_days); one year does not fit all.
+  - CKV_AWS_338
+
+summary-position: top

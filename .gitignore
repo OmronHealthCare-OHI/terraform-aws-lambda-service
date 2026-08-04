@@ -1,0 +1,27 @@
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+.claude
+
+# Terraform working files
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# The root .terraform.lock.hcl is committed to pin providers. Examples are
+# validate-only and not covered by dependabot, so theirs would go stale.
+examples/**/.terraform.lock.hcl
+
+# Local env files
+.env
+.env.*
+!.env.example
