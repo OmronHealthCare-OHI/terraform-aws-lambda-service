@@ -113,6 +113,17 @@ run "rejects_bare_boundary_policy_name" {
   expect_failures = [var.permissions_boundary_arn]
 }
 
+# --- Log history must outlive the configuration ---
+
+run "log_group_is_kept_when_the_configuration_goes_away" {
+  command = plan
+
+  assert {
+    condition     = aws_cloudwatch_log_group.this.skip_destroy == true
+    error_message = "The log group must keep skip_destroy = true: a rename or destroy would otherwise delete the log history, and the role has no logs:CreateLogGroup to recreate the group"
+  }
+}
+
 # --- Guardrail caps: out-of-range values must be rejected ---
 
 run "rejects_oversized_memory" {

@@ -54,28 +54,43 @@ AWS-managed keys. When set:
 
 ## Lifecycle
 
+The log group is created with `skip_destroy`, so **Terraform never deletes it**.
+Renaming the service, running `terraform destroy`, or removing the module all
+leave the group and its history behind in AWS. That is deliberate: the role has
+no `logs:CreateLogGroup`, so a deleted group means logging stops silently. The
+trade-off is that the group can outlive the configuration that made it.
+
 ### Renaming a service
 
 `service_name` and `name_prefix` feed the function, role and log group names, so
-changing either replaces all three. The log group is created with
-`skip_destroy`, so a rename **keeps** the old group and its history rather than
-deleting it. Two consequences:
+changing either replaces all three. The old log group is left behind unmanaged.
+Remove it by hand once you no longer need its history.
 
-- The old group is left behind unmanaged. Remove it by hand once you no longer
-  need the history.
-- Renaming *back* to a name you used before fails, because the orphaned group
-  still holds it. Delete or import that group first.
+### When the log group already exists
 
-### Adopting a function that already exists
+Any apply that would create `/aws/lambda/<function>` while it already exists
+fails with `ResourceAlreadyExistsException`. Three ways to get there:
 
-Lambda creates `/aws/lambda/<function>` itself on first invocation. If the
-function ran before it was managed here, that group already exists and the first
-apply fails with `ResourceAlreadyExistsException`. Import it before applying:
+1. The function ran before this module managed it, so Lambda created the group.
+2. A previous `terraform destroy` left the group behind.
+3. You renamed the service and are now renaming it back.
+
+In cases 1 and 2 nothing occupies `aws_cloudwatch_log_group.this` in state, so
+import the existing group and keep its history:
 
 ```sh
 terraform import \
   'module.service.aws_cloudwatch_log_group.this' \
   '/aws/lambda/myapp-euw1-hello-service'
+```
+
+Case 3 is different: that address already holds the *current* group, so an import
+would need a `terraform state rm` first — which just orphans another group.
+Deleting the old one is simpler, at the cost of its history:
+
+```sh
+aws logs delete-log-group \
+  --log-group-name '/aws/lambda/myapp-euw1-hello-service'
 ```
 
 ## Inputs & outputs
