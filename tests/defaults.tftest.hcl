@@ -78,6 +78,52 @@ run "boundary_applied_when_set" {
   }
 }
 
+run "accepts_aws_managed_boundary" {
+  command = plan
+
+  variables {
+    permissions_boundary_arn = "arn:aws:iam::aws:policy/PowerUserAccess"
+  }
+
+  assert {
+    condition     = aws_iam_role.exec.permissions_boundary == "arn:aws:iam::aws:policy/PowerUserAccess"
+    error_message = "An AWS-managed policy must be usable as the boundary"
+  }
+}
+
+run "rejects_boundary_that_is_not_a_policy_arn" {
+  command = plan
+
+  # A role ARN: plausible enough to paste by mistake, and silently unbounded
+  # if it were accepted.
+  variables {
+    permissions_boundary_arn = "arn:aws:iam::123456789012:role/usnp-usw2-pipeline"
+  }
+
+  expect_failures = [var.permissions_boundary_arn]
+}
+
+run "rejects_bare_boundary_policy_name" {
+  command = plan
+
+  variables {
+    permissions_boundary_arn = "usnp-usw2-pipeline-permissions-boundary"
+  }
+
+  expect_failures = [var.permissions_boundary_arn]
+}
+
+# --- Log history must outlive the configuration ---
+
+run "log_group_is_kept_when_the_configuration_goes_away" {
+  command = plan
+
+  assert {
+    condition     = aws_cloudwatch_log_group.this.skip_destroy == true
+    error_message = "The log group must keep skip_destroy = true: a rename or destroy would otherwise delete the log history, and the role has no logs:CreateLogGroup to recreate the group"
+  }
+}
+
 # --- Guardrail caps: out-of-range values must be rejected ---
 
 run "rejects_oversized_memory" {
