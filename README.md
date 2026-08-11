@@ -39,8 +39,8 @@ module "service" {
 Pin an exact `?ref=` tag on both. Never reference `main`. Full input list in
 [`examples/complete`](examples/complete/main.tf).
 
-Both module sources are private repositories, so `terraform init` needs git
-credentials that can read them — an SSH rewrite locally, and a read token in CI.
+Both module repos are public, so `terraform init` fetches them with no
+credentials.
 
 ## What you get
 
