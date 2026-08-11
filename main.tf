@@ -8,11 +8,35 @@ terraform {
   }
 }
 
-locals {
-  function_name = "${var.name_prefix}-${var.service_name}"
+# Naming and tags for every resource here. The caller passes its own label's
+# context, so region, stage and the ohi:* hierarchy are inputs to the label, not
+# strings assembled in this module.
+module "label" {
+  source = "github.com/OmronHealthCare-OHI/terraform-null-label?ref=0.1.1"
 
-  # The boundary only lets the pipeline create roles named "<prefix>-cicd-*".
-  exec_role_name = "${var.name_prefix}-cicd-${var.service_name}-exec"
+  context = var.context
+  name    = var.service_name
+  tags    = var.extra_tags
+}
+
+locals {
+  function_name = module.label.id
+
+  # The boundary only lets the pipeline create roles named "<prefix>-cicd-*", so
+  # cicd has to follow the prefix directly: the project/application segments the
+  # label composes into `id` cannot sit in front of it. Attributes are carried
+  # over, which is what keeps two stages sharing an account from colliding.
+  exec_role_name = join("-", compact(concat(
+    [module.label.prefix, "cicd", var.service_name],
+    module.label.context.attributes,
+    ["exec"],
+  )))
+
+  tags = module.label.tags
+
+  # Letters, digits, hyphens and underscores: the intersection of what Lambda
+  # and IAM accept. A label delimiter of "/" would otherwise reach AWS.
+  name_charset = "^[a-zA-Z0-9_-]+$"
 
   has_env_vars = length(var.environment_variables) > 0
 
@@ -52,12 +76,39 @@ resource "aws_lambda_function" "this" {
     }
   }
 
-  tags = var.extra_tags
+  tags = local.tags
 
   depends_on = [
     aws_cloudwatch_log_group.this,
     aws_iam_role_policy.exec,
   ]
+
+  lifecycle {
+    # Without a prefix the name carries no environment or region, so two stages
+    # would fight over one function. Checked here rather than on the input: it
+    # is only known once the label has resolved.
+    precondition {
+      condition     = module.label.prefix != ""
+      error_message = "The label produced no prefix, so resource names would carry no environment or region. Set country and aws_region (or deployment_region) on the context you pass in, and leave prefix_enabled at its default."
+    }
+
+    # A disabled label yields an empty id. This module has no matching disabled
+    # mode, so it would go on to create resources with empty names.
+    precondition {
+      condition     = local.function_name != ""
+      error_message = "The label produced an empty id, so there is no name to give the function. Remove enabled = false from the context you pass in: this module cannot be switched off through the label."
+    }
+
+    precondition {
+      condition     = length(local.function_name) <= 64
+      error_message = "The composed function name \"${local.function_name}\" is longer than Lambda's 64-character limit. Shorten service_name, or the project/application segments of the context."
+    }
+
+    precondition {
+      condition     = can(regex(local.name_charset, local.function_name))
+      error_message = "The composed function name \"${local.function_name}\" contains characters Lambda rejects. Names may only hold letters, digits, hyphens and underscores, so keep the label delimiter to \"-\" or \"_\"."
+    }
+  }
 }
 
 # The stable address consumers invoke. Repointing it is an instant rollback.
@@ -80,7 +131,21 @@ resource "aws_iam_role" "exec" {
     }]
   })
 
-  tags = var.extra_tags
+  tags = local.tags
+
+  lifecycle {
+    # Replaces the old name_prefix + service_name <= 53 input validation: the
+    # prefix now comes from the label, so the cap can only be checked here.
+    precondition {
+      condition     = length(local.exec_role_name) <= 64
+      error_message = "The composed execution role name \"${local.exec_role_name}\" is longer than IAM's 64-character limit. Shorten service_name, or the attributes carried in the context."
+    }
+
+    precondition {
+      condition     = can(regex(local.name_charset, local.exec_role_name))
+      error_message = "The composed execution role name \"${local.exec_role_name}\" contains characters IAM rejects. Names may only hold letters, digits, hyphens and underscores, so keep the label delimiter to \"-\" or \"_\"."
+    }
+  }
 }
 
 # Inline, not a managed-policy attachment: the boundary forbids
@@ -127,5 +192,5 @@ resource "aws_cloudwatch_log_group" "this" {
   # A rename would otherwise destroy the log history, and the role has no
   # logs:CreateLogGroup to recreate the group.
   skip_destroy = true
-  tags         = var.extra_tags
+  tags         = local.tags
 }

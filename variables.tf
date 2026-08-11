@@ -1,28 +1,45 @@
 variable "service_name" {
   type        = string
-  description = "Service name, used in resource naming"
+  description = "Service name, used as the label's leaf name and in the execution role name"
 
   validation {
     condition     = can(regex("^[a-zA-Z0-9_-]+$", var.service_name))
     error_message = "service_name may only contain letters, digits, hyphens and underscores — the characters Lambda and IAM accept in a name."
   }
-
-  # The exec role name is the tightest limit: it adds 11 characters and IAM
-  # caps role names at 64.
-  validation {
-    condition     = length(var.name_prefix) + length(var.service_name) <= 53
-    error_message = "name_prefix and service_name are too long together: their combined length must be <= 53 so the derived execution role name \"<name_prefix>-cicd-<service_name>-exec\" fits IAM's 64-character limit."
-  }
 }
 
-variable "name_prefix" {
-  type        = string
-  description = "Prefix for resource names, e.g. an <env><region> code like myapp-euw1"
-
-  validation {
-    condition     = can(regex("^[a-zA-Z0-9_-]+$", var.name_prefix))
-    error_message = "name_prefix may only contain letters, digits, hyphens and underscores — the characters Lambda and IAM accept in a name."
-  }
+# Naming and tags come from the shared label module. Its context object is
+# reproduced here verbatim so callers can pass `context = module.label.context`
+# and the module inherits country/stage/region and the ohi:* hierarchy. The
+# lengths that IAM and Lambda cap are checked on the composed names, not here:
+# they are only known after the label resolves. See the preconditions in main.tf.
+variable "context" {
+  description = "Label context from the caller's terraform-null-label instance. Supplies the <country><stage>-<region> prefix, the ohi:* tag hierarchy and any attributes. The prefix is required: this module refuses to name resources without one."
+  type = object({
+    enabled              = optional(bool, true)
+    country              = optional(string, null)
+    stage                = optional(string, null)
+    aws_region           = optional(string, null)
+    deployment_region    = optional(string, null)
+    project              = optional(string, null)
+    application          = optional(string, null)
+    module               = optional(string, null)
+    stack_suffix         = optional(string, null)
+    stack_name_enabled   = optional(bool, true)
+    owner                = optional(string, null)
+    name                 = optional(string, null)
+    attributes           = optional(list(string), [])
+    non_prd              = optional(bool, false)
+    delimiter            = optional(string, "-")
+    prefix_enabled       = optional(bool, true)
+    tag_prefix           = optional(string, "ohi")
+    tag_delimiter        = optional(string, ":")
+    id_length_limit      = optional(number, null)
+    max_tag_key_length   = optional(number, null)
+    max_tag_value_length = optional(number, null)
+    tags                 = optional(map(string), {})
+  })
+  default = {}
 }
 
 variable "artifact_bucket" {
@@ -161,6 +178,6 @@ variable "extra_policy_json" {
 
 variable "extra_tags" {
   type        = map(string)
-  description = "Additional tags beyond the provider default_tags"
+  description = "Additional tags merged on top of the label's generated ohi:* and Name tags. Passed through the label module, so its AWS tag constraints (50 tags, key/value length and character rules) apply."
   default     = {}
 }

@@ -1,8 +1,17 @@
 mock_provider "aws" {}
 
 variables {
-  service_name     = "hello-service"
-  name_prefix      = "usnp-usw2"
+  service_name = "hello-service"
+
+  # A non-prod US context: prefix usnp-usw2, hierarchy vlt-platform.
+  context = {
+    country     = "us"
+    aws_region  = "us-west-2"
+    non_prd     = true
+    project     = "vlt"
+    application = "platform"
+  }
+
   artifact_bucket  = "usnp-usw2-cicd-artifacts"
   artifact_key     = "hello-service/abc123.zip"
   artifact_version = "test-version-1"
@@ -12,17 +21,17 @@ run "names_follow_convention" {
   command = plan
 
   assert {
-    condition     = aws_lambda_function.this.function_name == "usnp-usw2-hello-service"
-    error_message = "Function name should be <name_prefix>-<service_name>"
+    condition     = aws_lambda_function.this.function_name == "usnp-usw2-vlt-platform-hello-service"
+    error_message = "Function name should be the label id: <prefix>-<project>-<application>-<service_name>"
   }
 
   assert {
     condition     = aws_iam_role.exec.name == "usnp-usw2-cicd-hello-service-exec"
-    error_message = "Exec role must be named under -cicd- so the deploy role is allowed to create it"
+    error_message = "Exec role must be named <prefix>-cicd-<service_name>-exec so the deploy role is allowed to create it under the boundary"
   }
 
   assert {
-    condition     = aws_cloudwatch_log_group.this.name == "/aws/lambda/usnp-usw2-hello-service"
+    condition     = aws_cloudwatch_log_group.this.name == "/aws/lambda/usnp-usw2-vlt-platform-hello-service"
     error_message = "Log group should be /aws/lambda/<function_name>"
   }
 
@@ -30,6 +39,99 @@ run "names_follow_convention" {
     condition     = aws_lambda_alias.live.name == "live"
     error_message = "The rollback alias must be named 'live'"
   }
+}
+
+run "attributes_reach_both_the_id_and_the_exec_role" {
+  command = plan
+
+  # Two pipeline stages share the non-prod account, so the stage attribute is
+  # the only thing keeping their resource names apart.
+  variables {
+    context = {
+      country     = "us"
+      aws_region  = "us-west-2"
+      non_prd     = true
+      project     = "vlt"
+      application = "platform"
+      attributes  = ["test"]
+    }
+  }
+
+  assert {
+    condition     = aws_lambda_function.this.function_name == "usnp-usw2-vlt-platform-hello-service-test"
+    error_message = "Attributes from the context must be appended to the function name"
+  }
+
+  assert {
+    condition     = aws_iam_role.exec.name == "usnp-usw2-cicd-hello-service-test-exec"
+    error_message = "Attributes must reach the exec role name too, or two stages in one account collide on it"
+  }
+}
+
+run "tags_come_from_the_label" {
+  command = plan
+
+  variables {
+    extra_tags = { managed-by = "terraform" }
+  }
+
+  assert {
+    condition     = aws_lambda_function.this.tags["ohi:project"] == "vlt"
+    error_message = "The ohi:* tags must come from the label, not from the caller's provider default_tags"
+  }
+
+  assert {
+    condition     = aws_lambda_function.this.tags["ohi:application"] == "vlt-platform"
+    error_message = "The label's composed hierarchy must reach the resources"
+  }
+
+  assert {
+    condition     = aws_lambda_function.this.tags["Name"] == "usnp-usw2-vlt-platform-hello-service"
+    error_message = "The Name tag must carry the generated id"
+  }
+
+  assert {
+    condition     = aws_lambda_function.this.tags["managed-by"] == "terraform"
+    error_message = "extra_tags must be merged on top of the generated tags"
+  }
+
+  assert {
+    condition     = aws_iam_role.exec.tags["ohi:project"] == "vlt" && aws_cloudwatch_log_group.this.tags["ohi:project"] == "vlt"
+    error_message = "Every resource this module owns must carry the label's tags"
+  }
+}
+
+run "rejects_a_disabled_label" {
+  command = plan
+
+  # The label can be switched off; this module cannot follow it, so it must say
+  # so rather than create resources with empty names.
+  variables {
+    context = {
+      enabled     = false
+      country     = "us"
+      aws_region  = "us-west-2"
+      non_prd     = true
+      project     = "vlt"
+      application = "platform"
+    }
+  }
+
+  expect_failures = [aws_lambda_function.this]
+}
+
+run "rejects_a_context_without_a_prefix" {
+  command = plan
+
+  # No country or region: names would carry no environment, and both stages
+  # would resolve to the same function.
+  variables {
+    context = {
+      project = "vlt"
+    }
+  }
+
+  expect_failures = [aws_lambda_function.this]
 }
 
 run "artifact_is_pinned_by_version" {
@@ -279,17 +381,80 @@ run "rejects_bare_kms_key_id" {
   expect_failures = [var.kms_key_arn]
 }
 
-# --- Naming: the exec role name must fit IAM's 64-character limit ---
+# --- Naming: the composed names must fit what IAM and Lambda accept ---
 
-run "rejects_names_too_long_for_the_exec_role" {
+run "rejects_an_exec_role_name_over_the_iam_limit" {
   command = plan
 
+  # No hierarchy segments, so only the role name (which adds "cicd-" and
+  # "-exec") crosses 64 characters — the function name stays legal.
   variables {
-    name_prefix  = "prodeuw1-platform-services"
-    service_name = "document-ingestion-processor"
+    service_name = "document-ingestion-processor-with-a-very-long-name"
+    context = {
+      country    = "us"
+      aws_region = "us-west-2"
+      non_prd    = true
+    }
   }
 
-  expect_failures = [var.service_name]
+  expect_failures = [aws_iam_role.exec]
+}
+
+run "rejects_a_function_name_over_the_lambda_limit" {
+  command = plan
+
+  # Sized so only the function name crosses 64: the role name carries no
+  # hierarchy, so it stays at 61 characters and its own precondition passes.
+  variables {
+    service_name = "document-ingestion-processor-batch-runner"
+    context = {
+      country     = "us"
+      aws_region  = "us-west-2"
+      non_prd     = true
+      project     = "voltron"
+      application = "platform-services"
+    }
+  }
+
+  expect_failures = [aws_lambda_function.this]
+}
+
+run "rejects_a_delimiter_aws_will_not_accept_in_a_name" {
+  command = plan
+
+  # The delimiter reaches the prefix, so the role name is the first to break.
+  # The function name is equally illegal, but it is never evaluated: the
+  # function takes the role's ARN, so the role's precondition fails first.
+  variables {
+    context = {
+      country     = "us"
+      aws_region  = "us-west-2"
+      non_prd     = true
+      project     = "vlt"
+      application = "platform"
+      delimiter   = "/"
+    }
+  }
+
+  expect_failures = [aws_iam_role.exec]
+}
+
+run "rejects_hierarchy_characters_aws_will_not_accept_in_a_name" {
+  command = plan
+
+  # The hierarchy only reaches the function name, so this is what isolates the
+  # function's own character check.
+  variables {
+    context = {
+      country     = "us"
+      aws_region  = "us-west-2"
+      non_prd     = true
+      project     = "vlt.core"
+      application = "platform"
+    }
+  }
+
+  expect_failures = [aws_lambda_function.this]
 }
 
 run "rejects_invalid_characters_in_service_name" {
@@ -300,16 +465,6 @@ run "rejects_invalid_characters_in_service_name" {
   }
 
   expect_failures = [var.service_name]
-}
-
-run "rejects_invalid_characters_in_name_prefix" {
-  command = plan
-
-  variables {
-    name_prefix = "usnp usw2"
-  }
-
-  expect_failures = [var.name_prefix]
 }
 
 run "rejects_empty_artifact_version" {

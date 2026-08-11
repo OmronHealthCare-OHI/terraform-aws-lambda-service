@@ -52,3 +52,13 @@ output "log_group_arn" {
   description = "ARN of the log group this module owns, for alarms and cross-account log destinations"
   value       = aws_cloudwatch_log_group.this.arn
 }
+
+output "label_context" {
+  description = "The context this module's label resolved to, for composing child labels that inherit the service's naming hierarchy"
+  value       = module.label.context
+}
+
+output "tags" {
+  description = "The tags applied to every resource here: the label's ohi:* set and Name, merged with extra_tags"
+  value       = local.tags
+}
