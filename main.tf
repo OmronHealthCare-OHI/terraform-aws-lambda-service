@@ -50,11 +50,19 @@ locals {
   # and IAM accept. A label delimiter of "/" would otherwise reach AWS.
   name_charset = "^[a-zA-Z0-9_-]+$"
 
-  # Both label invariants are asserted on every resource that takes its name
+  # These label invariants are asserted on every resource that takes its name
   # from the label, because `terraform apply -target` can plan one of them
   # without the function: a check that lived only there would be skipped.
-  label_prefix_error   = "The label produced no prefix, so resource names would carry no environment or region. Set country and aws_region (or deployment_region) on the context you pass in, and leave prefix_enabled at its default."
+  label_prefix_error   = "The label produced no prefix, so resource names would carry no environment or region. Set country and aws_region (or deployment_region) on the context you pass in."
   label_disabled_error = "The label produced an empty id, so there is no name to give this module's resources. Remove enabled = false from the context you pass in: this module cannot be switched off through the label."
+
+  # A non-empty prefix is not enough on its own: the label computes `prefix`
+  # whether or not it puts it in the `id`, so prefix_enabled = false yields a
+  # prefix the id does not carry (and an id_length_limit shorter than the prefix
+  # truncates into it). The exec role name would still be prefixed, since this
+  # module composes that one itself, leaving the function and its log group as
+  # the only unprefixed names.
+  label_unprefixed_name_error = "The label's id \"${local.function_name}\" does not begin with its prefix \"${module.label.prefix}\", so the function and its log group would carry no environment or region and two stages would fight over one name. Leave prefix_enabled at its default on the context you pass in, and keep id_length_limit (when set) longer than the prefix."
 
   has_env_vars = length(var.environment_variables) > 0
 
@@ -115,6 +123,13 @@ resource "aws_lambda_function" "this" {
     precondition {
       condition     = local.function_name != ""
       error_message = local.label_disabled_error
+    }
+
+    # Guarded on the empty id so a disabled label reports the check above rather
+    # than both.
+    precondition {
+      condition     = local.function_name == "" || startswith(local.function_name, module.label.prefix)
+      error_message = local.label_unprefixed_name_error
     }
 
     precondition {
@@ -235,6 +250,11 @@ resource "aws_cloudwatch_log_group" "this" {
     precondition {
       condition     = local.function_name != ""
       error_message = local.label_disabled_error
+    }
+
+    precondition {
+      condition     = local.function_name == "" || startswith(local.function_name, module.label.prefix)
+      error_message = local.label_unprefixed_name_error
     }
   }
 }

@@ -218,6 +218,30 @@ run "accepts_a_staged_context_without_attributes" {
   }
 }
 
+run "rejects_a_context_that_keeps_the_prefix_out_of_the_id" {
+  command = plan
+
+  # prefix_enabled = false drops the prefix from the id but not from the label's
+  # prefix output, so a check on the prefix alone would pass while the function
+  # and log group names carried no environment or region. The exec role is
+  # unaffected, because this module composes its name from the prefix directly:
+  # the log group is what reports, and the function is skipped because it depends
+  # on the group.
+  variables {
+    context = {
+      country        = "us"
+      aws_region     = "us-west-2"
+      non_prd        = true
+      project        = "vlt"
+      application    = "platform"
+      attributes     = ["test"]
+      prefix_enabled = false
+    }
+  }
+
+  expect_failures = [aws_cloudwatch_log_group.this]
+}
+
 run "rejects_a_context_without_a_prefix" {
   command = plan
 
