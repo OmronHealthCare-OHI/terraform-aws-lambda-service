@@ -39,6 +39,16 @@ module "service" {
 Pin an exact `?ref=` tag on both. Never reference `main`. Full input list in
 [`examples/complete`](examples/complete/main.tf).
 
+`attributes` is not optional decoration above. The stage only reaches a resource
+name through the prefix, and two settings erase it there: `non_prd = true`
+collapses every non-prod stage into `<country>np`, and leaving `stage` unset does
+the same for the rest. Either way nothing separates one stage from the next —
+there is no `ohi:stage` tag, and `ohi:environment` carries the prefix — so two
+stages deployed to one account would name the same function, role and log group,
+and whoever applied second would take the first one over. The module rejects such
+a context: pass `attributes` (the pipeline stage is the obvious value), or set a
+real `stage` with `non_prd = false`.
+
 Both module repos are public, so `terraform init` fetches them with no
 credentials.
 

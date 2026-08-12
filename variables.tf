@@ -43,6 +43,22 @@ variable "context" {
   # without a context has nothing this module can name. Required so that is an
   # input error rather than a precondition failure mid-plan.
   nullable = false
+
+  # The prefix is the only place a stage could reach the names, and two ways of
+  # setting the context erase it: non_prd collapses every non-prod stage into
+  # <country>np, and leaving stage unset does the same for the rest. Either way
+  # the label emits nothing that separates one stage from the next — not even a
+  # tag, since ohi:environment carries the prefix and there is no ohi:stage — so
+  # two stages deployed to one account would resolve to the same function, role
+  # and log group, and whoever applied second would take over the first. Both
+  # operands are caller inputs, so this is checkable here rather than as a
+  # precondition on the resources.
+  validation {
+    condition = length(coalesce(var.context.attributes, [])) > 0 || (
+      !coalesce(var.context.non_prd, false) && var.context.stage != null && var.context.stage != ""
+    )
+    error_message = "This context cannot produce names that tell one stage from another: non_prd collapses every non-prod stage into <country>np, and an unset stage does the same for the rest. Set attributes on the context to keep the stages apart (e.g. attributes = [\"test\"]), or set stage with non_prd = false."
+  }
 }
 
 variable "artifact_bucket" {
