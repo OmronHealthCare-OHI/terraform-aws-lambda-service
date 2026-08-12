@@ -50,10 +50,16 @@ credentials.
   version per deploy.
 - A `live` alias pointing at that version. Invoke the alias, never the function
   directly: rolling back is then just repointing the alias.
-- A runtime role (`{prefix}-cicd-{service_name}-{attributes}-exec`, carrying the
-  permissions boundary when provided) that can write logs and nothing else.
-  `cicd` follows the prefix directly because the boundary only permits the
-  pipeline to create roles matching `{prefix}-cicd-*`. Add permissions via
+- A runtime role
+  (`{prefix}-cicd-{project}-{application}-{service_name}-{attributes}-exec`, e.g.
+  `usnp-usw2-cicd-vlt-platform-hello-service-test-exec`, carrying the permissions
+  boundary when provided) that can write logs and nothing else. `cicd` follows the
+  prefix directly because the boundary only permits the pipeline to create roles
+  matching `{prefix}-cicd-*`; the hierarchy follows `cicd` rather than preceding
+  it, so two services sharing a `service_name` under different
+  `project`/`application` values do not end up sharing one role. The role name is
+  therefore the function name plus `cicd-` and `-exec`, which makes it the first
+  of the two to reach the 64-character limit. Add permissions via
   `extra_policy_json`; it becomes an **inline** policy, because boundaries here
   forbid `iam:AttachRolePolicy`. Statements merge by `sid`, so avoid
   `LambdaServiceLogs` and `LambdaServiceDecryptEnvVars`.
@@ -135,7 +141,7 @@ applied even where a `default_tags` block is missing.
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.57.1 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.58.0 |
 
 ### Modules
 

@@ -26,8 +26,8 @@ run "names_follow_convention" {
   }
 
   assert {
-    condition     = aws_iam_role.exec.name == "usnp-usw2-cicd-hello-service-exec"
-    error_message = "Exec role must be named <prefix>-cicd-<service_name>-exec so the deploy role is allowed to create it under the boundary"
+    condition     = aws_iam_role.exec.name == "usnp-usw2-cicd-vlt-platform-hello-service-exec"
+    error_message = "Exec role must be named <prefix>-cicd-<project>-<application>-<service_name>-exec: cicd follows the prefix so the deploy role is allowed to create it under the boundary, and the hierarchy follows cicd so two services with one service_name do not share a role"
   }
 
   assert {
@@ -63,8 +63,31 @@ run "attributes_reach_both_the_id_and_the_exec_role" {
   }
 
   assert {
-    condition     = aws_iam_role.exec.name == "usnp-usw2-cicd-hello-service-test-exec"
+    condition     = aws_iam_role.exec.name == "usnp-usw2-cicd-vlt-platform-hello-service-test-exec"
     error_message = "Attributes must reach the exec role name too, or two stages in one account collide on it"
+  }
+}
+
+run "hierarchy_keeps_one_service_name_from_sharing_a_role" {
+  command = plan
+
+  # Same service_name as the default context, different hierarchy. Without the
+  # hierarchy in the role name both would resolve to usnp-usw2-cicd-hello-service-exec
+  # while their function names differed, and the second apply would take over the
+  # role and overwrite its inline "runtime" policy.
+  variables {
+    context = {
+      country     = "us"
+      aws_region  = "us-west-2"
+      non_prd     = true
+      project     = "common"
+      application = "iam"
+    }
+  }
+
+  assert {
+    condition     = aws_iam_role.exec.name == "usnp-usw2-cicd-common-iam-hello-service-exec"
+    error_message = "The context hierarchy must reach the exec role name, or two services sharing a service_name collide on one role"
   }
 }
 
@@ -416,11 +439,14 @@ run "rejects_an_exec_role_name_over_the_iam_limit" {
   expect_failures = [aws_iam_role.exec]
 }
 
-run "rejects_a_function_name_over_the_lambda_limit" {
+run "rejects_a_long_hierarchy_that_pushes_the_names_over_the_limit" {
   command = plan
 
-  # Sized so only the function name crosses 64: the role name carries no
-  # hierarchy, so it stays at 61 characters and its own precondition passes.
+  # The hierarchy now reaches the role name too, so a long project/application
+  # pair counts against IAM's cap. The role reports it rather than the function:
+  # the role name is the function name plus "cicd-" and "-exec", so it always
+  # crosses 64 first, and the function takes the role's ARN so its own length
+  # precondition is never evaluated. That check stays as defence in depth.
   variables {
     service_name = "document-ingestion-processor-batch-runner"
     context = {
@@ -432,7 +458,7 @@ run "rejects_a_function_name_over_the_lambda_limit" {
     }
   }
 
-  expect_failures = [aws_lambda_function.this]
+  expect_failures = [aws_iam_role.exec]
 }
 
 run "rejects_a_delimiter_aws_will_not_accept_in_a_name" {
@@ -458,8 +484,8 @@ run "rejects_a_delimiter_aws_will_not_accept_in_a_name" {
 run "rejects_hierarchy_characters_aws_will_not_accept_in_a_name" {
   command = plan
 
-  # The hierarchy only reaches the function name, so this is what isolates the
-  # function's own character check.
+  # The hierarchy reaches both names, and the role is evaluated first because the
+  # function takes its ARN, so the role's character check is what reports it.
   variables {
     context = {
       country     = "us"
@@ -470,7 +496,7 @@ run "rejects_hierarchy_characters_aws_will_not_accept_in_a_name" {
     }
   }
 
-  expect_failures = [aws_lambda_function.this]
+  expect_failures = [aws_iam_role.exec]
 }
 
 run "rejects_invalid_characters_in_service_name" {

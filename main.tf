@@ -24,10 +24,22 @@ locals {
 
   # The boundary only lets the pipeline create roles named "<prefix>-cicd-*", so
   # cicd has to follow the prefix directly: the project/application segments the
-  # label composes into `id` cannot sit in front of it. Attributes are carried
-  # over, which is what keeps two stages sharing an account from colliding.
+  # label composes into `id` cannot sit in front of it. They do follow cicd,
+  # though, because the boundary only constrains what comes before it: without
+  # them two services sharing a service_name under different hierarchies (say
+  # vlt/platform/api and common/iam/api) would get distinct function names but
+  # one role, and the second stack would overwrite the first one's inline
+  # policy. Attributes are carried over for the same reason, one level down:
+  # they keep two stages sharing an account apart. compact() drops the
+  # hierarchy segments that are unset.
   exec_role_name = join("-", compact(concat(
-    [module.label.prefix, "cicd", var.service_name],
+    [
+      module.label.prefix,
+      "cicd",
+      module.label.context.project,
+      module.label.context.application,
+      var.service_name,
+    ],
     module.label.context.attributes,
     ["exec"],
   )))
@@ -156,7 +168,7 @@ resource "aws_iam_role" "exec" {
     # prefix now comes from the label, so the cap can only be checked here.
     precondition {
       condition     = length(local.exec_role_name) <= 64
-      error_message = "The composed execution role name \"${local.exec_role_name}\" is longer than IAM's 64-character limit. Shorten service_name, or the attributes carried in the context."
+      error_message = "The composed execution role name \"${local.exec_role_name}\" is longer than IAM's 64-character limit. It carries the same segments as the function name plus \"cicd-\" and \"-exec\", so it is the first name to run out of room: shorten service_name, or the project/application segments or attributes carried in the context."
     }
 
     precondition {
