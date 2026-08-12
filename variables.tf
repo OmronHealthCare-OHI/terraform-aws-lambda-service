@@ -39,7 +39,10 @@ variable "context" {
     max_tag_value_length = optional(number, null)
     tags                 = optional(map(string), {})
   })
-  default = {}
+  # No default: every resource here is named from the label, and a caller
+  # without a context has nothing this module can name. Required so that is an
+  # input error rather than a precondition failure mid-plan.
+  nullable = false
 }
 
 variable "artifact_bucket" {

@@ -117,7 +117,16 @@ run "rejects_a_disabled_label" {
     }
   }
 
-  expect_failures = [aws_lambda_function.this]
+  # Every named resource carries the check, so none of them can be applied on
+  # its own with -target either.
+  # The role and the log group carry the same checks as the function, so none of
+  # them can be applied on its own with -target. The function itself is never
+  # reached: it depends on both, and Terraform skips a resource whose
+  # dependencies failed.
+  expect_failures = [
+    aws_iam_role.exec,
+    aws_cloudwatch_log_group.this,
+  ]
 }
 
 run "rejects_a_context_without_a_prefix" {
@@ -131,7 +140,14 @@ run "rejects_a_context_without_a_prefix" {
     }
   }
 
-  expect_failures = [aws_lambda_function.this]
+  # The role and the log group carry the same checks as the function, so none of
+  # them can be applied on its own with -target. The function itself is never
+  # reached: it depends on both, and Terraform skips a resource whose
+  # dependencies failed.
+  expect_failures = [
+    aws_iam_role.exec,
+    aws_cloudwatch_log_group.this,
+  ]
 }
 
 run "artifact_is_pinned_by_version" {

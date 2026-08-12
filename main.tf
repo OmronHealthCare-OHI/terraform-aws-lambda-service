@@ -38,6 +38,12 @@ locals {
   # and IAM accept. A label delimiter of "/" would otherwise reach AWS.
   name_charset = "^[a-zA-Z0-9_-]+$"
 
+  # Both label invariants are asserted on every resource that takes its name
+  # from the label, because `terraform apply -target` can plan one of them
+  # without the function: a check that lived only there would be skipped.
+  label_prefix_error   = "The label produced no prefix, so resource names would carry no environment or region. Set country and aws_region (or deployment_region) on the context you pass in, and leave prefix_enabled at its default."
+  label_disabled_error = "The label produced an empty id, so there is no name to give this module's resources. Remove enabled = false from the context you pass in: this module cannot be switched off through the label."
+
   has_env_vars = length(var.environment_variables) > 0
 
   # Optional inputs use "" as the unset sentinel; normalise to null here.
@@ -89,14 +95,14 @@ resource "aws_lambda_function" "this" {
     # is only known once the label has resolved.
     precondition {
       condition     = module.label.prefix != ""
-      error_message = "The label produced no prefix, so resource names would carry no environment or region. Set country and aws_region (or deployment_region) on the context you pass in, and leave prefix_enabled at its default."
+      error_message = local.label_prefix_error
     }
 
     # A disabled label yields an empty id. This module has no matching disabled
     # mode, so it would go on to create resources with empty names.
     precondition {
       condition     = local.function_name != ""
-      error_message = "The label produced an empty id, so there is no name to give the function. Remove enabled = false from the context you pass in: this module cannot be switched off through the label."
+      error_message = local.label_disabled_error
     }
 
     precondition {
@@ -134,6 +140,18 @@ resource "aws_iam_role" "exec" {
   tags = local.tags
 
   lifecycle {
+    # Without a prefix the composed name starts at "cicd-", which no boundary
+    # statement matches, so the pipeline would be denied at apply time.
+    precondition {
+      condition     = module.label.prefix != ""
+      error_message = local.label_prefix_error
+    }
+
+    precondition {
+      condition     = local.function_name != ""
+      error_message = local.label_disabled_error
+    }
+
     # Replaces the old name_prefix + service_name <= 53 input validation: the
     # prefix now comes from the label, so the cap can only be checked here.
     precondition {
@@ -193,4 +211,18 @@ resource "aws_cloudwatch_log_group" "this" {
   # logs:CreateLogGroup to recreate the group.
   skip_destroy = true
   tags         = local.tags
+
+  lifecycle {
+    # An empty id would leave the bare "/aws/lambda/" group, which no function
+    # writes to and which the boundary's log-group pattern does not cover.
+    precondition {
+      condition     = module.label.prefix != ""
+      error_message = local.label_prefix_error
+    }
+
+    precondition {
+      condition     = local.function_name != ""
+      error_message = local.label_disabled_error
+    }
+  }
 }
