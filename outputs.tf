@@ -54,8 +54,8 @@ output "log_group_arn" {
 }
 
 output "label_context" {
-  description = "The context this module's label resolved to, for composing child labels that inherit the service's naming hierarchy"
-  value       = module.label.context
+  description = "The context this module's label resolved to, for composing child labels that inherit the service's naming hierarchy. The leaf name is withheld: the label has a single name slot, so a child that inherited it would compose an id identical to this service's function. Child labels must set their own name, and it replaces this service's rather than nesting under it, so keep child names unique within the project/application hierarchy."
+  value       = merge(module.label.context, { name = null })
 }
 
 output "tags" {

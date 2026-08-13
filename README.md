@@ -203,7 +203,7 @@ applied even where a `default_tags` block is missing.
 | <a name="output_exec_role_name"></a> [exec\_role\_name](#output\_exec\_role\_name) | Runtime role name, for attaching further policies |
 | <a name="output_function_arn"></a> [function\_arn](#output\_function\_arn) | ARN of the function (unqualified) |
 | <a name="output_function_name"></a> [function\_name](#output\_function\_name) | Name of the Lambda function |
-| <a name="output_label_context"></a> [label\_context](#output\_label\_context) | The context this module's label resolved to, for composing child labels that inherit the service's naming hierarchy |
+| <a name="output_label_context"></a> [label\_context](#output\_label\_context) | The context this module's label resolved to, for composing child labels that inherit the service's naming hierarchy. The leaf name is withheld: the label has a single name slot, so a child that inherited it would compose an id identical to this service's function. Child labels must set their own name, and it replaces this service's rather than nesting under it, so keep child names unique within the project/application hierarchy. |
 | <a name="output_live_alias_arn"></a> [live\_alias\_arn](#output\_live\_alias\_arn) | ARN of the live alias: invoke THIS, it enables instant rollback |
 | <a name="output_live_alias_invoke_arn"></a> [live\_alias\_invoke\_arn](#output\_live\_alias\_invoke\_arn) | Invoke ARN of the live alias, for API Gateway and EventBridge targets |
 | <a name="output_log_group_arn"></a> [log\_group\_arn](#output\_log\_group\_arn) | ARN of the log group this module owns, for alarms and cross-account log destinations |

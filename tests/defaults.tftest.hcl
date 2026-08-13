@@ -97,6 +97,29 @@ run "hierarchy_keeps_one_service_name_from_sharing_a_role" {
   }
 }
 
+run "label_context_withholds_the_leaf_name" {
+  command = plan
+
+  # The label has one name slot, so a child inheriting this service's name would
+  # compose the function's own id. Everything else must survive, attributes
+  # included: a child that lost them would collide across stages the same way
+  # this module refuses to.
+  assert {
+    condition     = output.label_context.name == null
+    error_message = "label_context must not carry the leaf name, or a child label that sets no name of its own reuses this service's id"
+  }
+
+  assert {
+    condition     = output.label_context.project == "vlt" && output.label_context.application == "platform"
+    error_message = "label_context must carry the hierarchy so child labels inherit it"
+  }
+
+  assert {
+    condition     = output.label_context.attributes == tolist(["test"])
+    error_message = "label_context must carry the attributes, or child labels lose the stage that keeps them apart"
+  }
+}
+
 run "tags_come_from_the_label" {
   command = plan
 
