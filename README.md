@@ -47,7 +47,9 @@ there is no `ohi:stage` tag, and `ohi:environment` carries the prefix — so two
 stages deployed to one account would name the same function, role and log group,
 and whoever applied second would take the first one over. The module rejects such
 a context: pass `attributes` (the pipeline stage is the obvious value), or set a
-real `stage` with `non_prd = false`.
+real `stage` with `non_prd = false`. The attribute has to hold something — the
+label drops empty values before composing the name, so `attributes = [var.stage]`
+with an unset `stage` is the same as passing none.
 
 Both module repos are public, so `terraform init` fetches them with no
 credentials.

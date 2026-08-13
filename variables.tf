@@ -54,10 +54,12 @@ variable "context" {
   # operands are caller inputs, so this is checkable here rather than as a
   # precondition on the resources.
   validation {
-    condition = length(coalesce(var.context.attributes, [])) > 0 || (
+    # compact() first: the label drops empty attributes, so [""] would satisfy a
+    # plain count and still leave every stage with the same name.
+    condition = length(compact(coalesce(var.context.attributes, []))) > 0 || (
       !coalesce(var.context.non_prd, false) && var.context.stage != null && var.context.stage != ""
     )
-    error_message = "This context cannot produce names that tell one stage from another: non_prd collapses every non-prod stage into <country>np, and an unset stage does the same for the rest. Set attributes on the context to keep the stages apart (e.g. attributes = [\"test\"]), or set stage with non_prd = false."
+    error_message = "This context cannot produce names that tell one stage from another: non_prd collapses every non-prod stage into <country>np, and an unset stage does the same for the rest. Set attributes on the context to keep the stages apart (e.g. attributes = [\"test\"]), or set stage with non_prd = false. Empty attributes do not count: the label drops them before composing the name."
   }
 }
 

@@ -179,6 +179,26 @@ run "rejects_a_non_prd_context_without_attributes" {
   expect_failures = [var.context]
 }
 
+run "rejects_an_attribute_that_is_only_an_empty_string" {
+  command = plan
+
+  # What attributes = [var.stage] yields when stage is unset. The label compacts
+  # attributes away before composing the id, so this must not count as keeping the
+  # stages apart even though the list is not empty.
+  variables {
+    context = {
+      country     = "us"
+      aws_region  = "us-west-2"
+      non_prd     = true
+      project     = "vlt"
+      application = "platform"
+      attributes  = [""]
+    }
+  }
+
+  expect_failures = [var.context]
+}
+
 run "rejects_a_context_with_neither_a_stage_nor_attributes" {
   command = plan
 
