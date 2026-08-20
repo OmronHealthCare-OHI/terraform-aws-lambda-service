@@ -12,7 +12,7 @@ terraform {
 # context, so region, stage and the ohi:* hierarchy are inputs to the label, not
 # strings assembled in this module.
 module "label" {
-  source = "github.com/OmronHealthCare-OHI/terraform-null-label?ref=0.1.1"
+  source = "github.com/OmronHealthCare-OHI/terraform-null-label?ref=0.1.2"
 
   context = var.context
   name    = var.service_name
