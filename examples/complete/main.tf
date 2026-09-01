@@ -43,7 +43,7 @@ module "example" {
   artifact_version = "3sL4kqtJlcpXroDTDmJ+rmSpXd3dIbrHY+MTRCxf3vjVBH40Nr8X8gdRQBpUMLUo"
 
   handler                  = "handler.lambdaHandler"
-  runtime                  = "nodejs20.x"
+  runtime                  = "nodejs22.x"
   architectures            = ["arm64"]
   memory_size              = 256
   timeout                  = 10
