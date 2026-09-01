@@ -190,7 +190,7 @@ applied even where a `default_tags` block is missing.
 | <a name="input_memory_size"></a> [memory\_size](#input\_memory\_size) | Memory in MB. Capped by the module as a cost guardrail; raise the cap in the module deliberately if a service genuinely needs more. | `number` | `256` | no |
 | <a name="input_permissions_boundary_arn"></a> [permissions\_boundary\_arn](#input\_permissions\_boundary\_arn) | Pipeline permissions boundary. Required on the execution role: the deploy role that creates it may only create boundary-bound cicd-* roles. Leave empty only when applying outside the pipeline. | `string` | `""` | no |
 | <a name="input_reserved_concurrent_executions"></a> [reserved\_concurrent\_executions](#input\_reserved\_concurrent\_executions) | Ceiling on the function's concurrent executions (the Lambda autoscaling limit). -1 leaves it unreserved. The module caps how much a single service may reserve from the shared account pool. | `number` | `-1` | no |
-| <a name="input_runtime"></a> [runtime](#input\_runtime) | Lambda runtime | `string` | `"nodejs20.x"` | no |
+| <a name="input_runtime"></a> [runtime](#input\_runtime) | Lambda runtime | `string` | `"nodejs22.x"` | no |
 | <a name="input_service_name"></a> [service\_name](#input\_service\_name) | Service name, used as the label's leaf name and in the execution role name | `string` | n/a | yes |
 | <a name="input_timeout"></a> [timeout](#input\_timeout) | Timeout in seconds. Capped by the module so a runaway invocation cannot run, and bill, for the full 15 minutes. | `number` | `10` | no |
 
