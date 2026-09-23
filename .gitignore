@@ -25,3 +25,6 @@ examples/**/.terraform.lock.hcl
 .env
 .env.*
 !.env.example
+
+# Checkov's download cache for remote modules
+.external_modules/
