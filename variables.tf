@@ -10,18 +10,17 @@ variable "service_name" {
 
 # Naming and tags come from the shared label module. Its context object is
 # reproduced here verbatim so callers can pass `context = module.label.context`
-# and the module inherits country/stage/region and the ohi:* hierarchy. The
+# and the module inherits namespace/region/stage and the ohi:* hierarchy. The
 # lengths that IAM and Lambda cap are checked on the composed names, not here:
 # they are only known after the label resolves. See the preconditions in main.tf.
 variable "context" {
-  description = "Label context from the caller's terraform-null-label instance. Supplies the <country><stage>-<region> prefix, the ohi:* tag hierarchy and any attributes. The prefix is required: this module refuses to name resources without one."
+  description = "Label context from the caller's terraform-null-label instance. Supplies namespace, region and stage, the ohi:* tag hierarchy and any attributes. All three name segments are required: this module refuses to name resources without them."
   type = object({
     enabled              = optional(bool, true)
-    country              = optional(string, null)
+    namespace            = optional(string, null)
+    region               = optional(string, null)
     stage                = optional(string, null)
     aws_region           = optional(string, null)
-    deployment_region    = optional(string, null)
-    project              = optional(string, null)
     application          = optional(string, null)
     module               = optional(string, null)
     stack_suffix         = optional(string, null)
@@ -29,9 +28,7 @@ variable "context" {
     owner                = optional(string, null)
     name                 = optional(string, null)
     attributes           = optional(list(string), [])
-    non_prd              = optional(bool, false)
     delimiter            = optional(string, "-")
-    prefix_enabled       = optional(bool, true)
     tag_prefix           = optional(string, "ohi")
     tag_delimiter        = optional(string, ":")
     id_length_limit      = optional(number, null)
@@ -44,22 +41,16 @@ variable "context" {
   # input error rather than a precondition failure mid-plan.
   nullable = false
 
-  # The prefix is the only place a stage could reach the names, and two ways of
-  # setting the context erase it: non_prd collapses every non-prod stage into
-  # <country>np, and leaving stage unset does the same for the rest. Either way
-  # the label emits nothing that separates one stage from the next — not even a
-  # tag, since ohi:environment carries the prefix and there is no ohi:stage — so
-  # two stages deployed to one account would resolve to the same function, role
-  # and log group, and whoever applied second would take over the first. Both
-  # operands are caller inputs, so this is checkable here rather than as a
-  # precondition on the resources.
+  # stage is what separates two deployments sharing an account. Without it, and
+  # without attributes, both resolve to the same function, role and log group,
+  # and whoever applies second takes over the first.
   validation {
     # compact() first: the label drops empty attributes, so [""] would satisfy a
     # plain count and still leave every stage with the same name.
     condition = length(compact(coalesce(var.context.attributes, []))) > 0 || (
-      !coalesce(var.context.non_prd, false) && var.context.stage != null && var.context.stage != ""
+      var.context.stage != null && var.context.stage != ""
     )
-    error_message = "This context cannot produce names that tell one stage from another: non_prd collapses every non-prod stage into <country>np, and an unset stage does the same for the rest. Set attributes on the context to keep the stages apart (e.g. attributes = [\"test\"]), or set stage with non_prd = false. Empty attributes do not count: the label drops them before composing the name."
+    error_message = "This context cannot produce names that tell one stage from another. Set stage on the context, or set attributes to keep them apart (e.g. attributes = [\"test\"]). Empty attributes do not count: the label drops them before composing the name."
   }
 }
 

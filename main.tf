@@ -12,7 +12,7 @@ terraform {
 # context, so region, stage and the ohi:* hierarchy are inputs to the label, not
 # strings assembled in this module.
 module "label" {
-  source = "github.com/OmronHealthCare-OHI/terraform-null-label?ref=0.1.2"
+  source = "github.com/OmronHealthCare-OHI/terraform-null-label?ref=1.0.0"
 
   context = var.context
   name    = var.service_name
@@ -22,21 +22,23 @@ module "label" {
 locals {
   function_name = module.label.id
 
-  # The boundary only lets the pipeline create roles named "<prefix>-cicd-*", so
-  # cicd has to follow the prefix directly: the project/application segments the
-  # label composes into `id` cannot sit in front of it. They do follow cicd,
-  # though, because the boundary only constrains what comes before it: without
-  # them two services sharing a service_name under different hierarchies (say
-  # vlt/platform/api and common/iam/api) would get distinct function names but
-  # one role, and the second stack would overwrite the first one's inline
-  # policy. Attributes are carried over for the same reason, one level down:
-  # they keep two stages sharing an account apart. compact() drops the
-  # hierarchy segments that are unset.
+  # 1.0.0 has no `prefix` output: the id is composed straight from the label
+  # order. This is the leading part of it, the segments that carry environment
+  # and region, which the boundary conditions role names on.
+  # Joined with the context's delimiter, not a hardcoded "-": the label composes
+  # its id the same way, and the checks below compare the two.
+  name_prefix = join(coalesce(var.context.delimiter, "-"), compact([module.label.namespace, module.label.region, module.label.stage]))
+
+  # The boundary only lets the pipeline create roles named "<name_prefix>-cicd-*",
+  # so cicd follows those segments directly and application follows cicd. Without
+  # application, two services sharing a service_name under different hierarchies
+  # would get distinct function names but one role, and the second stack would
+  # overwrite the first one's inline policy. Attributes do the same one level
+  # down, keeping two stages in one account apart.
   exec_role_name = join("-", compact(concat(
     [
-      module.label.prefix,
+      local.name_prefix,
       "cicd",
-      module.label.context.project,
       module.label.context.application,
       var.service_name,
     ],
@@ -53,16 +55,16 @@ locals {
   # These label invariants are asserted on every resource that takes its name
   # from the label, because `terraform apply -target` can plan one of them
   # without the function: a check that lived only there would be skipped.
-  label_prefix_error   = "The label produced no prefix, so resource names would carry no environment or region. Set country and aws_region (or deployment_region) on the context you pass in."
+  # namespace is guaranteed by the label itself, and stage is covered by the
+  # context validation in variables.tf. region is the one nothing else enforces.
+  label_region_error   = "The label carries no region, so two regions would resolve to the same function, role and log group. Set region on the context you pass in."
   label_disabled_error = "The label produced an empty id, so there is no name to give this module's resources. Remove enabled = false from the context you pass in: this module cannot be switched off through the label."
 
-  # A non-empty prefix is not enough on its own: the label computes `prefix`
-  # whether or not it puts it in the `id`, so prefix_enabled = false yields a
-  # prefix the id does not carry (and an id_length_limit shorter than the prefix
-  # truncates into it). The exec role name would still be prefixed, since this
-  # module composes that one itself, leaving the function and its log group as
-  # the only unprefixed names.
-  label_unprefixed_name_error = "The label's id \"${local.function_name}\" does not begin with its prefix \"${module.label.prefix}\", so the function and its log group would carry no environment or region and two stages would fight over one name. Leave prefix_enabled at its default on the context you pass in, and keep id_length_limit (when set) longer than the prefix."
+  # Non-empty leading segments are not enough on their own: an id_length_limit
+  # shorter than them truncates into the id. The exec role name would still
+  # carry them, since this module composes that one itself, leaving the function
+  # and its log group as the only unprefixed names.
+  label_unprefixed_name_error = "The label's id \"${local.function_name}\" does not begin with \"${local.name_prefix}\", so the function and its log group would carry no region or stage and two stages would fight over one name. Keep id_length_limit (when set) longer than those leading segments."
 
   has_env_vars = length(var.environment_variables) > 0
 
@@ -114,8 +116,8 @@ resource "aws_lambda_function" "this" {
     # would fight over one function. Checked here rather than on the input: it
     # is only known once the label has resolved.
     precondition {
-      condition     = module.label.prefix != ""
-      error_message = local.label_prefix_error
+      condition     = module.label.region != ""
+      error_message = local.label_region_error
     }
 
     # A disabled label yields an empty id. This module has no matching disabled
@@ -128,7 +130,7 @@ resource "aws_lambda_function" "this" {
     # Guarded on the empty id so a disabled label reports the check above rather
     # than both.
     precondition {
-      condition     = local.function_name == "" || startswith(local.function_name, module.label.prefix)
+      condition     = local.function_name == "" || startswith(local.function_name, local.name_prefix)
       error_message = local.label_unprefixed_name_error
     }
 
@@ -170,8 +172,8 @@ resource "aws_iam_role" "exec" {
     # Without a prefix the composed name starts at "cicd-", which no boundary
     # statement matches, so the pipeline would be denied at apply time.
     precondition {
-      condition     = module.label.prefix != ""
-      error_message = local.label_prefix_error
+      condition     = module.label.region != ""
+      error_message = local.label_region_error
     }
 
     precondition {
@@ -243,8 +245,8 @@ resource "aws_cloudwatch_log_group" "this" {
     # An empty id would leave the bare "/aws/lambda/" group, which no function
     # writes to and which the boundary's log-group pattern does not cover.
     precondition {
-      condition     = module.label.prefix != ""
-      error_message = local.label_prefix_error
+      condition     = module.label.region != ""
+      error_message = local.label_region_error
     }
 
     precondition {
@@ -253,7 +255,7 @@ resource "aws_cloudwatch_log_group" "this" {
     }
 
     precondition {
-      condition     = local.function_name == "" || startswith(local.function_name, module.label.prefix)
+      condition     = local.function_name == "" || startswith(local.function_name, local.name_prefix)
       error_message = local.label_unprefixed_name_error
     }
   }

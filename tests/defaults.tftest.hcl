@@ -3,14 +3,14 @@ mock_provider "aws" {}
 variables {
   service_name = "hello-service"
 
-  # A non-prod US context: prefix usnp-usw2, hierarchy vlt-platform. non_prd
-  # collapses the stage out of the prefix, so the context must carry an attribute
-  # to keep this deployment apart from the other stages in the same account.
+  # A non-prod US context: vlt-us-dev, hierarchy platform. test and acceptance
+  # both land in the same account, so the context carries an attribute to keep
+  # this deployment apart from the others.
   context = {
-    country     = "us"
+    namespace   = "vlt"
+    region      = "us"
+    stage       = "dev"
     aws_region  = "us-west-2"
-    non_prd     = true
-    project     = "vlt"
     application = "platform"
     attributes  = ["test"]
   }
@@ -24,17 +24,17 @@ run "names_follow_convention" {
   command = plan
 
   assert {
-    condition     = aws_lambda_function.this.function_name == "usnp-usw2-vlt-platform-hello-service-test"
-    error_message = "Function name should be the label id: <prefix>-<project>-<application>-<service_name>-<attributes>"
+    condition     = aws_lambda_function.this.function_name == "vlt-us-dev-platform-hello-service-test"
+    error_message = "Function name should be the label id: <namespace>-<region>-<stage>-<application>-<service_name>-<attributes>"
   }
 
   assert {
-    condition     = aws_iam_role.exec.name == "usnp-usw2-cicd-vlt-platform-hello-service-test-exec"
-    error_message = "Exec role must be named <prefix>-cicd-<project>-<application>-<service_name>-exec: cicd follows the prefix so the deploy role is allowed to create it under the boundary, and the hierarchy follows cicd so two services with one service_name do not share a role"
+    condition     = aws_iam_role.exec.name == "vlt-us-dev-cicd-platform-hello-service-test-exec"
+    error_message = "Exec role must be named <namespace>-<region>-<stage>-cicd-<application>-<service_name>-exec: cicd follows the leading segments so the deploy role is allowed to create it under the boundary, and application follows cicd so two services with one service_name do not share a role"
   }
 
   assert {
-    condition     = aws_cloudwatch_log_group.this.name == "/aws/lambda/usnp-usw2-vlt-platform-hello-service-test"
+    condition     = aws_cloudwatch_log_group.this.name == "/aws/lambda/vlt-us-dev-platform-hello-service-test"
     error_message = "Log group should be /aws/lambda/<function_name>"
   }
 
@@ -53,22 +53,22 @@ run "attributes_reach_both_the_id_and_the_exec_role" {
   # through rather than matching a constant.
   variables {
     context = {
-      country     = "us"
+      namespace   = "vlt"
+      region      = "us"
+      stage       = "dev"
       aws_region  = "us-west-2"
-      non_prd     = true
-      project     = "vlt"
       application = "platform"
       attributes  = ["acceptance"]
     }
   }
 
   assert {
-    condition     = aws_lambda_function.this.function_name == "usnp-usw2-vlt-platform-hello-service-acceptance"
+    condition     = aws_lambda_function.this.function_name == "vlt-us-dev-platform-hello-service-acceptance"
     error_message = "Attributes from the context must be appended to the function name"
   }
 
   assert {
-    condition     = aws_iam_role.exec.name == "usnp-usw2-cicd-vlt-platform-hello-service-acceptance-exec"
+    condition     = aws_iam_role.exec.name == "vlt-us-dev-cicd-platform-hello-service-acceptance-exec"
     error_message = "Attributes must reach the exec role name too, or two stages in one account collide on it"
   }
 }
@@ -77,22 +77,23 @@ run "hierarchy_keeps_one_service_name_from_sharing_a_role" {
   command = plan
 
   # Same service_name as the default context, different hierarchy. Without the
-  # hierarchy in the role name both would resolve to usnp-usw2-cicd-hello-service-exec
-  # while their function names differed, and the second apply would take over the
-  # role and overwrite its inline "runtime" policy.
+  # namespace and application in the role name both would resolve to
+  # <leading>-cicd-hello-service-exec while their function names differed, and
+  # the second apply would take over the role and overwrite its inline
+  # "runtime" policy.
   variables {
     context = {
-      country     = "us"
+      namespace   = "common"
+      region      = "us"
+      stage       = "dev"
       aws_region  = "us-west-2"
-      non_prd     = true
-      project     = "common"
       application = "iam"
       attributes  = ["test"]
     }
   }
 
   assert {
-    condition     = aws_iam_role.exec.name == "usnp-usw2-cicd-common-iam-hello-service-test-exec"
+    condition     = aws_iam_role.exec.name == "common-us-dev-cicd-iam-hello-service-test-exec"
     error_message = "The context hierarchy must reach the exec role name, or two services sharing a service_name collide on one role"
   }
 }
@@ -110,7 +111,7 @@ run "label_context_withholds_the_leaf_name" {
   }
 
   assert {
-    condition     = output.label_context.project == "vlt" && output.label_context.application == "platform"
+    condition     = output.label_context.namespace == "vlt" && output.label_context.application == "platform"
     error_message = "label_context must carry the hierarchy so child labels inherit it"
   }
 
@@ -128,17 +129,17 @@ run "tags_come_from_the_label" {
   }
 
   assert {
-    condition     = aws_lambda_function.this.tags["ohi:project"] == "vlt"
-    error_message = "The ohi:* tags must come from the label, not from the caller's provider default_tags"
+    condition     = aws_lambda_function.this.tags["Namespace"] == "vlt"
+    error_message = "The generated tags must come from the label, not from the caller's provider default_tags"
   }
 
   assert {
-    condition     = aws_lambda_function.this.tags["ohi:application"] == "vlt-platform"
+    condition     = aws_lambda_function.this.tags["ohi:application"] == "platform"
     error_message = "The label's composed hierarchy must reach the resources"
   }
 
   assert {
-    condition     = aws_lambda_function.this.tags["Name"] == "usnp-usw2-vlt-platform-hello-service-test"
+    condition     = aws_lambda_function.this.tags["Name"] == "vlt-us-dev-platform-hello-service-test"
     error_message = "The Name tag must carry the generated id"
   }
 
@@ -148,7 +149,7 @@ run "tags_come_from_the_label" {
   }
 
   assert {
-    condition     = aws_iam_role.exec.tags["ohi:project"] == "vlt" && aws_cloudwatch_log_group.this.tags["ohi:project"] == "vlt"
+    condition     = aws_iam_role.exec.tags["Namespace"] == "vlt" && aws_cloudwatch_log_group.this.tags["Namespace"] == "vlt"
     error_message = "Every resource this module owns must carry the label's tags"
   }
 }
@@ -161,10 +162,10 @@ run "rejects_a_disabled_label" {
   variables {
     context = {
       enabled     = false
-      country     = "us"
+      namespace   = "vlt"
+      region      = "us"
+      stage       = "dev"
       aws_region  = "us-west-2"
-      non_prd     = true
-      project     = "vlt"
       application = "platform"
       attributes  = ["test"]
     }
@@ -182,26 +183,6 @@ run "rejects_a_disabled_label" {
 
 # --- Stages sharing an account must not resolve to the same names ---
 
-run "rejects_a_non_prd_context_without_attributes" {
-  command = plan
-
-  # non_prd collapses dev/test/acceptance into the single usnp segment, so every
-  # non-prod stage in this account would name its function, role and log group
-  # identically and the second to apply would take the first one over.
-  variables {
-    context = {
-      country     = "us"
-      aws_region  = "us-west-2"
-      non_prd     = true
-      stage       = "dev"
-      project     = "vlt"
-      application = "platform"
-    }
-  }
-
-  expect_failures = [var.context]
-}
-
 run "rejects_an_attribute_that_is_only_an_empty_string" {
   command = plan
 
@@ -210,10 +191,9 @@ run "rejects_an_attribute_that_is_only_an_empty_string" {
   # stages apart even though the list is not empty.
   variables {
     context = {
-      country     = "us"
+      namespace   = "vlt"
+      region      = "us"
       aws_region  = "us-west-2"
-      non_prd     = true
-      project     = "vlt"
       application = "platform"
       attributes  = [""]
     }
@@ -225,13 +205,14 @@ run "rejects_an_attribute_that_is_only_an_empty_string" {
 run "rejects_a_context_with_neither_a_stage_nor_attributes" {
   command = plan
 
-  # The other way to erase the stage: non_prd is off, but stage is unset, so the
-  # prefix is just <country>-<region> and carries no stage either.
+  # Nothing separates one deployment from the next: both would name their
+  # function, role and log group identically and the second to apply would take
+  # the first one over.
   variables {
     context = {
-      country     = "us"
+      namespace   = "vlt"
+      region      = "us"
       aws_region  = "us-west-2"
-      project     = "vlt"
       application = "platform"
     }
   }
@@ -242,63 +223,65 @@ run "rejects_a_context_with_neither_a_stage_nor_attributes" {
 run "accepts_a_staged_context_without_attributes" {
   command = plan
 
-  # A real stage in the prefix distinguishes the deployment on its own, so
+  # A real stage in the id distinguishes the deployment on its own, so
   # attributes are not required here.
   variables {
     context = {
-      country     = "us"
-      aws_region  = "us-west-2"
-      non_prd     = false
+      namespace   = "vlt"
+      region      = "us"
       stage       = "prd"
-      project     = "vlt"
+      aws_region  = "us-west-2"
       application = "platform"
     }
   }
 
   assert {
-    condition     = aws_lambda_function.this.function_name == "usprd-usw2-vlt-platform-hello-service"
-    error_message = "A context with a stage and no attributes must be accepted, with the stage carried in the prefix"
+    condition     = aws_lambda_function.this.function_name == "vlt-us-prd-platform-hello-service"
+    error_message = "A context with a stage and no attributes must be accepted, with the stage carried in the id"
   }
 }
 
-run "rejects_a_context_that_keeps_the_prefix_out_of_the_id" {
+run "rejects_an_id_truncated_into_its_leading_segments" {
   command = plan
 
-  # prefix_enabled = false drops the prefix from the id but not from the label's
-  # prefix output, so a check on the prefix alone would pass while the function
-  # and log group names carried no environment or region. The exec role is
-  # unaffected, because this module composes its name from the prefix directly:
-  # the log group is what reports, and the function is skipped because it depends
-  # on the group.
+  # id_length_limit truncates from the right and appends a hash, so a limit
+  # shorter than <namespace>-<region>-<stage> leaves the function and log group
+  # with names carrying no region or stage. The exec role is unaffected, because
+  # this module composes its name from those segments directly: the log group is
+  # what reports, and the function is skipped because it depends on the group.
   variables {
     context = {
-      country        = "us"
-      aws_region     = "us-west-2"
-      non_prd        = true
-      project        = "vlt"
-      application    = "platform"
-      attributes     = ["test"]
-      prefix_enabled = false
+      namespace       = "vlt"
+      region          = "us"
+      stage           = "dev"
+      aws_region      = "us-west-2"
+      application     = "platform"
+      attributes      = ["test"]
+      id_length_limit = 6
     }
   }
 
   expect_failures = [aws_cloudwatch_log_group.this]
 }
 
-run "rejects_a_context_without_a_prefix" {
+run "rejects_a_context_without_a_region" {
   command = plan
 
-  # No country or region: names would carry no environment, and both stages
-  # would resolve to the same function. The attribute is only here to satisfy the
-  # stage-distinctness validation, so the prefix precondition is what reports.
+  # namespace is enforced by the label itself and stage is covered by the
+  # context validation, so region is the only leading segment this module has to
+  # check. Without it two regions would resolve to the same function, role and
+  # log group.
   variables {
     context = {
-      project    = "vlt"
-      attributes = ["test"]
+      namespace   = "vlt"
+      stage       = "dev"
+      aws_region  = "us-west-2"
+      application = "platform"
+      attributes  = ["test"]
     }
   }
 
-  # The role and the log group carry the same checks as the function, so none of
+  # The role and the log group carry the same check as the function, so none of
   # them can be applied on its own with -target. The function itself is never
   # reached: it depends on both, and Terraform skips a resource whose
   # dependencies failed.
@@ -565,9 +548,10 @@ run "rejects_an_exec_role_name_over_the_iam_limit" {
   variables {
     service_name = "document-ingestion-processor-with-a-very-long-name"
     context = {
-      country    = "us"
+      namespace  = "vlt"
+      region     = "us"
+      stage      = "dev"
       aws_region = "us-west-2"
-      non_prd    = true
       attributes = ["test"]
     }
   }
@@ -578,7 +562,7 @@ run "rejects_an_exec_role_name_over_the_iam_limit" {
 run "rejects_a_long_hierarchy_that_pushes_the_names_over_the_limit" {
   command = plan
 
-  # The hierarchy now reaches the role name too, so a long project/application
+  # The hierarchy now reaches the role name too, so a long namespace/application
   # pair counts against IAM's cap. The role reports it rather than the function:
   # the role name is the function name plus "cicd-" and "-exec", so it always
   # crosses 64 first, and the function takes the role's ARN so its own length
@@ -586,10 +570,10 @@ run "rejects_a_long_hierarchy_that_pushes_the_names_over_the_limit" {
   variables {
     service_name = "document-ingestion-processor-batch-runner"
     context = {
-      country     = "us"
+      namespace   = "voltron"
+      region      = "us"
+      stage       = "dev"
       aws_region  = "us-west-2"
-      non_prd     = true
-      project     = "voltron"
       application = "platform-services"
       attributes  = ["test"]
     }
@@ -601,15 +585,15 @@ run "rejects_a_long_hierarchy_that_pushes_the_names_over_the_limit" {
 run "rejects_a_delimiter_aws_will_not_accept_in_a_name" {
   command = plan
 
-  # The delimiter reaches the prefix, so the role name is the first to break.
+  # The delimiter reaches the leading segments, so the role name breaks first.
   # The function name is equally illegal, but it is never evaluated: the
   # function takes the role's ARN, so the role's precondition fails first.
   variables {
     context = {
-      country     = "us"
+      namespace   = "vlt"
+      region      = "us"
+      stage       = "dev"
       aws_region  = "us-west-2"
-      non_prd     = true
-      project     = "vlt"
       application = "platform"
       attributes  = ["test"]
       delimiter   = "/"
@@ -622,15 +606,18 @@ run "rejects_a_delimiter_aws_will_not_accept_in_a_name" {
 run "rejects_hierarchy_characters_aws_will_not_accept_in_a_name" {
   command = plan
 
-  # The hierarchy reaches both names, and the role is evaluated first because the
-  # function takes its ARN, so the role's character check is what reports it.
+  # application, not namespace: CloudPosse normalises namespace, region and
+  # stage before they reach the id or the outputs, but this module composes the
+  # role name from the raw context.application, so that is the one that can
+  # still carry an illegal character. The role is evaluated first because the
+  # function takes its ARN, so the role's character check reports it.
   variables {
     context = {
-      country     = "us"
+      namespace   = "vlt"
+      region      = "us"
+      stage       = "dev"
       aws_region  = "us-west-2"
-      non_prd     = true
-      project     = "vlt.core"
-      application = "platform"
+      application = "platform.core"
       attributes  = ["test"]
     }
   }

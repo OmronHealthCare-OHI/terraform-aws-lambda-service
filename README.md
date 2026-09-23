@@ -10,12 +10,12 @@ write logs and nothing else, and a log group that does not keep logs forever.
 # Naming and tags come from the shared label module. You state where you deploy
 # once, and pass the resolved context down.
 module "label" {
-  source = "github.com/OmronHealthCare-OHI/terraform-null-label?ref=0.1.1"
+  source = "github.com/OmronHealthCare-OHI/terraform-null-label?ref=1.0.0"
 
-  country     = "us"
-  aws_region  = "us-west-2"
-  non_prd     = true # -> prefix usnp-usw2
-  project     = "vlt"
+  namespace   = "vlt"
+  region      = "us"
+  stage       = "dev"
+  aws_region  = "us-west-2" # tag only, not part of the id
   application = "platform"
   attributes  = [var.stage] # stages sharing an account must not collide
 }
@@ -39,17 +39,15 @@ module "service" {
 Pin an exact `?ref=` tag on both. Never reference `main`. Full input list in
 [`examples/complete`](examples/complete/main.tf).
 
-`attributes` is not optional decoration above. The stage only reaches a resource
-name through the prefix, and two settings erase it there: `non_prd = true`
-collapses every non-prod stage into `<country>np`, and leaving `stage` unset does
-the same for the rest. Either way nothing separates one stage from the next —
-there is no `ohi:stage` tag, and `ohi:environment` carries the prefix — so two
-stages deployed to one account would name the same function, role and log group,
-and whoever applied second would take the first one over. The module rejects such
-a context: pass `attributes` (the pipeline stage is the obvious value), or set a
-real `stage` with `non_prd = false`. The attribute has to hold something — the
-label drops empty values before composing the name, so `attributes = [var.stage]`
-with an unset `stage` is the same as passing none.
+`attributes` is not optional decoration above. Pipeline stages are finer grained
+than account stages: test and acceptance both map to a non-prod account, so both
+resolve to the same `stage` and nothing separates them. Two deployments would
+then name the same function, role and log group, and whoever applied second would
+take the first one over. The module rejects such a context: pass `attributes`,
+where the pipeline stage is the obvious value, or set a `stage` that is already
+distinct. The attribute has to hold something, since the label drops empty values
+before composing the name, so `attributes = [var.stage]` with an unset `stage` is
+the same as passing none.
 
 Both module repos are public, so `terraform init` fetches them with no
 credentials.
@@ -57,19 +55,20 @@ credentials.
 ## What you get
 
 - A Lambda named with the label's `id`
-  (`{prefix}-{project}-{application}-{service_name}-{attributes}`, e.g.
-  `usnp-usw2-vlt-platform-hello-service-test`) that publishes an immutable
+  (`{namespace}-{region}-{stage}-{application}-{service_name}-{attributes}`, e.g.
+  `vlt-us-dev-platform-hello-service-test`) that publishes an immutable
   version per deploy.
 - A `live` alias pointing at that version. Invoke the alias, never the function
   directly: rolling back is then just repointing the alias.
 - A runtime role
-  (`{prefix}-cicd-{project}-{application}-{service_name}-{attributes}-exec`, e.g.
-  `usnp-usw2-cicd-vlt-platform-hello-service-test-exec`, carrying the permissions
-  boundary when provided) that can write logs and nothing else. `cicd` follows the
-  prefix directly because the boundary only permits the pipeline to create roles
-  matching `{prefix}-cicd-*`; the hierarchy follows `cicd` rather than preceding
-  it, so two services sharing a `service_name` under different
-  `project`/`application` values do not end up sharing one role. The role name is
+  (`{namespace}-{region}-{stage}-cicd-{application}-{service_name}-{attributes}-exec`,
+  e.g. `vlt-us-dev-cicd-platform-hello-service-test-exec`, carrying the
+  permissions boundary when provided) that can write logs and nothing else.
+  `cicd` follows the leading segments directly because the boundary only permits
+  the pipeline to create roles matching `{namespace}-{region}-{stage}-cicd-*`;
+  `application` follows `cicd` rather than preceding it, so two services sharing
+  a `service_name` under different `namespace`/`application` values do not end up
+  sharing one role. The role name is
   therefore the function name plus `cicd-` and `-exec`, which makes it the first
   of the two to reach the 64-character limit. Add permissions via
   `extra_policy_json`; it becomes an **inline** policy, because boundaries here
@@ -122,7 +121,7 @@ import the existing group and keep its history:
 ```sh
 terraform import \
   'module.service.aws_cloudwatch_log_group.this' \
-  '/aws/lambda/usnp-usw2-vlt-platform-hello-service'
+  '/aws/lambda/vlt-us-dev-platform-hello-service'
 ```
 
 Case 3 is different: that address already holds the *current* group, so an import
@@ -131,7 +130,7 @@ Deleting the old one is simpler, at the cost of its history:
 
 ```sh
 aws logs delete-log-group \
-  --log-group-name '/aws/lambda/usnp-usw2-vlt-platform-hello-service'
+  --log-group-name '/aws/lambda/vlt-us-dev-platform-hello-service'
 ```
 
 ## Inputs & outputs
@@ -145,26 +144,26 @@ applied even where a `default_tags` block is missing.
 ### Requirements
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.9.0 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 5.0 |
 
 ### Providers
 
 | Name | Version |
-|------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.58.0 |
+| ---- | ------- |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.62.0 |
 
 ### Modules
 
 | Name | Source | Version |
-|------|--------|---------|
-| <a name="module_label"></a> [label](#module\_label) | github.com/OmronHealthCare-OHI/terraform-null-label | 0.1.1 |
+| ---- | ------ | ------- |
+| <a name="module_label"></a> [label](#module\_label) | github.com/OmronHealthCare-OHI/terraform-null-label | 1.0.0 |
 
 ### Resources
 
 | Name | Type |
-|------|------|
+| ---- | ---- |
 | [aws_cloudwatch_log_group.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_group) | resource |
 | [aws_iam_role.exec](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
 | [aws_iam_role_policy.exec](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy) | resource |
@@ -175,12 +174,12 @@ applied even where a `default_tags` block is missing.
 ### Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
+| ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_architectures"></a> [architectures](#input\_architectures) | Instruction set for the function. arm64 (Graviton) is cheaper per GB-second; use x86\_64 if a dependency has no arm64 build. | `list(string)` | <pre>[<br/>  "x86_64"<br/>]</pre> | no |
 | <a name="input_artifact_bucket"></a> [artifact\_bucket](#input\_artifact\_bucket) | S3 bucket holding the Lambda zip | `string` | n/a | yes |
 | <a name="input_artifact_key"></a> [artifact\_key](#input\_artifact\_key) | S3 key of the Lambda zip | `string` | n/a | yes |
 | <a name="input_artifact_version"></a> [artifact\_version](#input\_artifact\_version) | S3 object version: pins the exact zip that was built | `string` | n/a | yes |
-| <a name="input_context"></a> [context](#input\_context) | Label context from the caller's terraform-null-label instance. Supplies the <country><stage>-<region> prefix, the ohi:* tag hierarchy and any attributes. The prefix is required: this module refuses to name resources without one. | <pre>object({<br/>    enabled              = optional(bool, true)<br/>    country              = optional(string, null)<br/>    stage                = optional(string, null)<br/>    aws_region           = optional(string, null)<br/>    deployment_region    = optional(string, null)<br/>    project              = optional(string, null)<br/>    application          = optional(string, null)<br/>    module               = optional(string, null)<br/>    stack_suffix         = optional(string, null)<br/>    stack_name_enabled   = optional(bool, true)<br/>    owner                = optional(string, null)<br/>    name                 = optional(string, null)<br/>    attributes           = optional(list(string), [])<br/>    non_prd              = optional(bool, false)<br/>    delimiter            = optional(string, "-")<br/>    prefix_enabled       = optional(bool, true)<br/>    tag_prefix           = optional(string, "ohi")<br/>    tag_delimiter        = optional(string, ":")<br/>    id_length_limit      = optional(number, null)<br/>    max_tag_key_length   = optional(number, null)<br/>    max_tag_value_length = optional(number, null)<br/>    tags                 = optional(map(string), {})<br/>  })</pre> | n/a | yes |
+| <a name="input_context"></a> [context](#input\_context) | Label context from the caller's terraform-null-label instance. Supplies namespace, region and stage, the ohi:* tag hierarchy and any attributes. All three name segments are required: this module refuses to name resources without them. | <pre>object({<br/>    enabled              = optional(bool, true)<br/>    namespace            = optional(string, null)<br/>    region               = optional(string, null)<br/>    stage                = optional(string, null)<br/>    aws_region           = optional(string, null)<br/>    application          = optional(string, null)<br/>    module               = optional(string, null)<br/>    stack_suffix         = optional(string, null)<br/>    stack_name_enabled   = optional(bool, true)<br/>    owner                = optional(string, null)<br/>    name                 = optional(string, null)<br/>    attributes           = optional(list(string), [])<br/>    delimiter            = optional(string, "-")<br/>    tag_prefix           = optional(string, "ohi")<br/>    tag_delimiter        = optional(string, ":")<br/>    id_length_limit      = optional(number, null)<br/>    max_tag_key_length   = optional(number, null)<br/>    max_tag_value_length = optional(number, null)<br/>    tags                 = optional(map(string), {})<br/>  })</pre> | n/a | yes |
 | <a name="input_environment_variables"></a> [environment\_variables](#input\_environment\_variables) | Environment variables for the function | `map(string)` | `{}` | no |
 | <a name="input_extra_policy_json"></a> [extra\_policy\_json](#input\_extra\_policy\_json) | Optional additional runtime permissions as an IAM policy document JSON (merged into the role's inline policy). Use instead of attaching managed policies, which the permissions boundary forbids. Example: data.aws\_iam\_policy\_document.dynamo.json. Statements are merged by sid, so avoid the module's own: LambdaServiceLogs and LambdaServiceDecryptEnvVars. | `string` | `""` | no |
 | <a name="input_extra_tags"></a> [extra\_tags](#input\_extra\_tags) | Additional tags merged on top of the label's generated ohi:* and Name tags. Passed through the label module, so its AWS tag constraints (50 tags, key/value length and character rules) apply. | `map(string)` | `{}` | no |
@@ -197,7 +196,7 @@ applied even where a `default_tags` block is missing.
 ### Outputs
 
 | Name | Description |
-|------|-------------|
+| ---- | ----------- |
 | <a name="output_alias_name"></a> [alias\_name](#output\_alias\_name) | Name of the alias consumers invoke, for aws lambda invoke --qualifier and rollback tooling |
 | <a name="output_exec_role_arn"></a> [exec\_role\_arn](#output\_exec\_role\_arn) | Runtime role ARN, for iam:PassRole conditions and trust policies |
 | <a name="output_exec_role_name"></a> [exec\_role\_name](#output\_exec\_role\_name) | Runtime role name, for attaching further policies |
@@ -218,7 +217,7 @@ applied even where a `default_tags` block is missing.
 - Required inputs: `service_name`, and a `context` that resolves to a prefix.
 - Naming and tags are owned by
   [terraform-null-label](https://github.com/OmronHealthCare-OHI/terraform-null-label),
-  which is the source of truth for the `<country><stage>-<region>` prefix and
+  which is the source of truth for the `<namespace>-<region>-<stage>` segments and
   the `ohi:*` tag set. This module composes nothing of its own beyond the
   `-cicd-…-exec` role name the permissions boundary requires.
 - The composed names are checked at plan time: the function must fit Lambda's
