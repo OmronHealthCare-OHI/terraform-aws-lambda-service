@@ -39,8 +39,7 @@ locals {
     [
       local.name_prefix,
       "cicd",
-      module.label.context.application,
-      var.service_name,
+      module.label.name, # 1.0.0 folds <application>-<service_name>, normalised
     ],
     module.label.context.attributes,
     ["exec"],

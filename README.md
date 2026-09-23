@@ -52,6 +52,12 @@ the same as passing none.
 Both module repos are public, so `terraform init` fetches them with no
 credentials.
 
+**SOUP:** `terraform-null-label` 1.0.0 wraps
+[`cloudposse/label/null`](https://registry.terraform.io/modules/cloudposse/label/null/0.25.0)
+0.25.0, so `terraform init` now pulls one third-party module from the Terraform
+Registry (0.1.2 pulled none). Register it as a SOUP entry wherever this module is
+used. Checkov downloads external modules, so it is scanned.
+
 ## What you get
 
 - A Lambda named with the label's `id`

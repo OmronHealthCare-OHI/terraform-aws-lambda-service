@@ -603,28 +603,6 @@ run "rejects_a_delimiter_aws_will_not_accept_in_a_name" {
   expect_failures = [aws_iam_role.exec]
 }
 
-run "rejects_hierarchy_characters_aws_will_not_accept_in_a_name" {
-  command = plan
-
-  # application, not namespace: CloudPosse normalises namespace, region and
-  # stage before they reach the id or the outputs, but this module composes the
-  # role name from the raw context.application, so that is the one that can
-  # still carry an illegal character. The role is evaluated first because the
-  # function takes its ARN, so the role's character check reports it.
-  variables {
-    context = {
-      namespace   = "vlt"
-      region      = "us"
-      stage       = "dev"
-      aws_region  = "us-west-2"
-      application = "platform.core"
-      attributes  = ["test"]
-    }
-  }
-
-  expect_failures = [aws_iam_role.exec]
-}
-
 run "rejects_invalid_characters_in_service_name" {
   command = plan
 
