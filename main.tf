@@ -25,9 +25,7 @@ locals {
   # 1.0.0 has no `prefix` output: the id is composed straight from the label
   # order. This is the leading part of it, the segments that carry environment
   # and region, which the boundary conditions role names on.
-  # Joined with the context's delimiter, not a hardcoded "-": the label composes
-  # its id the same way, and the checks below compare the two.
-  name_prefix = join(coalesce(var.context.delimiter, "-"), compact([module.label.namespace, module.label.region, module.label.stage]))
+  name_prefix = join("-", compact([module.label.namespace, module.label.region, module.label.stage]))
 
   # The boundary only lets the pipeline create roles named "<name_prefix>-cicd-*",
   # so cicd follows those segments directly and application follows cicd. Without
@@ -41,14 +39,15 @@ locals {
       "cicd",
       module.label.name, # 1.0.0 folds <application>-<service_name>, normalised
     ],
-    module.label.context.attributes,
+    # Must match the label's regex_replace_chars, or the role and function names diverge.
+    [for a in module.label.context.attributes : lower(replace(a, "/[^-a-zA-Z0-9]/", ""))],
     ["exec"],
   )))
 
   tags = module.label.tags
 
   # Letters, digits, hyphens and underscores: the intersection of what Lambda
-  # and IAM accept. A label delimiter of "/" would otherwise reach AWS.
+  # and IAM accept.
   name_charset = "^[a-zA-Z0-9_-]+$"
 
   # These label invariants are asserted on every resource that takes its name
@@ -140,7 +139,7 @@ resource "aws_lambda_function" "this" {
 
     precondition {
       condition     = can(regex(local.name_charset, local.function_name))
-      error_message = "The composed function name \"${local.function_name}\" contains characters Lambda rejects. Names may only hold letters, digits, hyphens and underscores, so keep the label delimiter to \"-\" or \"_\"."
+      error_message = "The composed function name \"${local.function_name}\" contains characters Lambda rejects. Names may only hold letters, digits, hyphens and underscores."
     }
   }
 }
@@ -189,7 +188,7 @@ resource "aws_iam_role" "exec" {
 
     precondition {
       condition     = can(regex(local.name_charset, local.exec_role_name))
-      error_message = "The composed execution role name \"${local.exec_role_name}\" contains characters IAM rejects. Names may only hold letters, digits, hyphens and underscores, so keep the label delimiter to \"-\" or \"_\"."
+      error_message = "The composed execution role name \"${local.exec_role_name}\" contains characters IAM rejects. Names may only hold letters, digits, hyphens and underscores."
     }
   }
 }

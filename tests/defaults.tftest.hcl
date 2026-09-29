@@ -73,6 +73,31 @@ run "attributes_reach_both_the_id_and_the_exec_role" {
   }
 }
 
+run "attributes_are_normalised_the_same_in_the_id_and_the_exec_role" {
+  command = plan
+
+  variables {
+    context = {
+      namespace   = "vlt"
+      region      = "us"
+      stage       = "dev"
+      aws_region  = "us-west-2"
+      application = "platform"
+      attributes  = ["PR.123", "Test"]
+    }
+  }
+
+  assert {
+    condition     = aws_lambda_function.this.function_name == "vlt-us-dev-platform-hello-service-pr123-test"
+    error_message = "The label lowercases attributes and strips characters outside [-a-zA-Z0-9]"
+  }
+
+  assert {
+    condition     = aws_iam_role.exec.name == "vlt-us-dev-cicd-platform-hello-service-pr123-test-exec"
+    error_message = "The exec role must carry the same normalised attributes as the function"
+  }
+}
+
 run "hierarchy_keeps_one_service_name_from_sharing_a_role" {
   command = plan
 
@@ -141,6 +166,11 @@ run "tags_come_from_the_label" {
   assert {
     condition     = aws_lambda_function.this.tags["Name"] == "vlt-us-dev-platform-hello-service-test"
     error_message = "The Name tag must carry the generated id"
+  }
+
+  assert {
+    condition     = aws_lambda_function.this.tags["Environment"] == "us" && aws_lambda_function.this.tags["Stage"] == "dev"
+    error_message = "Region and stage must reach the tags, or the context type has dropped them"
   }
 
   assert {
@@ -238,6 +268,31 @@ run "accepts_a_staged_context_without_attributes" {
   assert {
     condition     = aws_lambda_function.this.function_name == "vlt-us-prd-platform-hello-service"
     error_message = "A context with a stage and no attributes must be accepted, with the stage carried in the id"
+  }
+}
+
+run "accepts_a_stageless_context_with_attributes" {
+  command = plan
+
+  # No stage segment, so the role name falls outside the pipeline boundary's pattern.
+  variables {
+    context = {
+      namespace   = "vlt"
+      region      = "us"
+      aws_region  = "us-west-2"
+      application = "platform"
+      attributes  = ["test"]
+    }
+  }
+
+  assert {
+    condition     = aws_lambda_function.this.function_name == "vlt-us-platform-hello-service-test"
+    error_message = "A stageless context with attributes must be accepted, with no stage segment in the id"
+  }
+
+  assert {
+    condition     = aws_iam_role.exec.name == "vlt-us-cicd-platform-hello-service-test-exec"
+    error_message = "A stageless context must give an exec role name with no stage segment"
   }
 }
 
@@ -582,12 +637,11 @@ run "rejects_a_long_hierarchy_that_pushes_the_names_over_the_limit" {
   expect_failures = [aws_iam_role.exec]
 }
 
-run "rejects_a_delimiter_aws_will_not_accept_in_a_name" {
+run "rejects_a_delimiter_other_than_a_hyphen" {
   command = plan
 
-  # The delimiter reaches the leading segments, so the role name breaks first.
-  # The function name is equally illegal, but it is never evaluated: the
-  # function takes the role's ARN, so the role's precondition fails first.
+  # "_" is legal for Lambda and IAM, but the boundary only matches hyphen-joined
+  # role names.
   variables {
     context = {
       namespace   = "vlt"
@@ -596,11 +650,11 @@ run "rejects_a_delimiter_aws_will_not_accept_in_a_name" {
       aws_region  = "us-west-2"
       application = "platform"
       attributes  = ["test"]
-      delimiter   = "/"
+      delimiter   = "_"
     }
   }
 
-  expect_failures = [aws_iam_role.exec]
+  expect_failures = [var.context]
 }
 
 run "rejects_invalid_characters_in_service_name" {
@@ -608,6 +662,28 @@ run "rejects_invalid_characters_in_service_name" {
 
   variables {
     service_name = "hello.service"
+  }
+
+  expect_failures = [var.service_name]
+}
+
+run "rejects_an_underscore_in_service_name" {
+  command = plan
+
+  # Legal for Lambda and IAM, but the label strips it, so the exec role would
+  # carry "helloservice" where the pipeline expects "hello_service".
+  variables {
+    service_name = "hello_service"
+  }
+
+  expect_failures = [var.service_name]
+}
+
+run "rejects_uppercase_in_service_name" {
+  command = plan
+
+  variables {
+    service_name = "Hello-Service"
   }
 
   expect_failures = [var.service_name]

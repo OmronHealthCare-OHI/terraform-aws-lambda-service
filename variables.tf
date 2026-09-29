@@ -2,9 +2,10 @@ variable "service_name" {
   type        = string
   description = "Service name, used as the label's leaf name and in the execution role name"
 
+  # The label would strip anything else, and cicd-role-pair matches exec roles on the raw service_name.
   validation {
-    condition     = can(regex("^[a-zA-Z0-9_-]+$", var.service_name))
-    error_message = "service_name may only contain letters, digits, hyphens and underscores — the characters Lambda and IAM accept in a name."
+    condition     = can(regex("^[a-z0-9-]+$", var.service_name))
+    error_message = "service_name may only contain lowercase letters, digits and hyphens. The label strips anything else from the names, so the exec role would no longer match the service_name the pipeline's permissions are scoped to."
   }
 }
 
@@ -51,6 +52,12 @@ variable "context" {
       var.context.stage != null && var.context.stage != ""
     )
     error_message = "This context cannot produce names that tell one stage from another. Set stage on the context, or set attributes to keep them apart (e.g. attributes = [\"test\"]). Empty attributes do not count: the label drops them before composing the name."
+  }
+
+  # The boundary matches "<namespace>-<region>-<stage>-cicd-*" with a literal hyphen.
+  validation {
+    condition     = coalesce(var.context.delimiter, "-") == "-"
+    error_message = "The label delimiter must be \"-\": the exec role name has to match the pipeline boundary's <namespace>-<region>-<stage>-cicd-* pattern, which is hyphen-separated."
   }
 }
 

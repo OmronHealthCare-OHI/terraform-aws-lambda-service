@@ -220,7 +220,8 @@ applied even where a `default_tags` block is missing.
 
 ## Conventions
 
-- Required inputs: `service_name`, and a `context` that resolves to a prefix.
+- Required inputs: `service_name` (lowercase letters, digits and hyphens), and a
+  `context` that resolves to a prefix.
 - Naming and tags are owned by
   [terraform-null-label](https://github.com/OmronHealthCare-OHI/terraform-null-label),
   which is the source of truth for the `<namespace>-<region>-<stage>` segments and
