@@ -5,6 +5,7 @@ on:
       - opened
       - reopened
       - synchronize
+      - edited
 
 concurrency:
   group: ci-${{ github.head_ref }}-pr
