@@ -189,6 +189,18 @@ variable "permissions_boundary_arn" {
   }
 }
 
+variable "exec_role_path" {
+  type        = string
+  description = "IAM path for the execution role, for example /services/<repo>/. Changing it replaces the role."
+  default     = "/"
+
+  # Catch a missing slash at plan, not at apply.
+  validation {
+    condition     = length(var.exec_role_path) <= 512 && can(regex("^/([A-Za-z0-9+=,.@_-]+/)*$", var.exec_role_path))
+    error_message = "exec_role_path must start and end with \"/\", for example \"/\" or \"/services/my-repo/\"."
+  }
+}
+
 variable "extra_policy_json" {
   type        = string
   description = "Optional additional runtime permissions as an IAM policy document JSON (merged into the role's inline policy). Use instead of attaching managed policies, which the permissions boundary forbids. Example: data.aws_iam_policy_document.dynamo.json. Statements are merged by sid, so avoid the module's own: LambdaServiceLogs and LambdaServiceDecryptEnvVars."

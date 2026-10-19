@@ -112,6 +112,11 @@ trade-off is that the group can outlive the configuration that made it.
 log group names, so changing any of them replaces all three. The old log group is
 left behind unmanaged. Remove it by hand once you no longer need its history.
 
+### Moving the role to another path
+
+Changing `exec_role_path` deletes the role and creates it again, since IAM cannot
+move one. The function has no working role for the few seconds in between.
+
 ### When the log group already exists
 
 Any apply that would create `/aws/lambda/<function>` while it already exists
@@ -187,6 +192,7 @@ applied even where a `default_tags` block is missing.
 | <a name="input_artifact_version"></a> [artifact\_version](#input\_artifact\_version) | S3 object version: pins the exact zip that was built | `string` | n/a | yes |
 | <a name="input_context"></a> [context](#input\_context) | Label context from the caller's terraform-null-label instance. Supplies namespace, region and stage, the ohi:* tag hierarchy and any attributes. All three name segments are required: this module refuses to name resources without them. | <pre>object({<br/>    enabled              = optional(bool, true)<br/>    namespace            = optional(string, null)<br/>    region               = optional(string, null)<br/>    stage                = optional(string, null)<br/>    aws_region           = optional(string, null)<br/>    application          = optional(string, null)<br/>    module               = optional(string, null)<br/>    stack_suffix         = optional(string, null)<br/>    stack_name_enabled   = optional(bool, true)<br/>    owner                = optional(string, null)<br/>    name                 = optional(string, null)<br/>    attributes           = optional(list(string), [])<br/>    delimiter            = optional(string, "-")<br/>    tag_prefix           = optional(string, "ohi")<br/>    tag_delimiter        = optional(string, ":")<br/>    id_length_limit      = optional(number, null)<br/>    max_tag_key_length   = optional(number, null)<br/>    max_tag_value_length = optional(number, null)<br/>    tags                 = optional(map(string), {})<br/>  })</pre> | n/a | yes |
 | <a name="input_environment_variables"></a> [environment\_variables](#input\_environment\_variables) | Environment variables for the function | `map(string)` | `{}` | no |
+| <a name="input_exec_role_path"></a> [exec\_role\_path](#input\_exec\_role\_path) | IAM path for the execution role, for example /services/<repo>/. Changing it replaces the role. | `string` | `"/"` | no |
 | <a name="input_extra_policy_json"></a> [extra\_policy\_json](#input\_extra\_policy\_json) | Optional additional runtime permissions as an IAM policy document JSON (merged into the role's inline policy). Use instead of attaching managed policies, which the permissions boundary forbids. Example: data.aws\_iam\_policy\_document.dynamo.json. Statements are merged by sid, so avoid the module's own: LambdaServiceLogs and LambdaServiceDecryptEnvVars. | `string` | `""` | no |
 | <a name="input_extra_tags"></a> [extra\_tags](#input\_extra\_tags) | Additional tags merged on top of the label's generated ohi:* and Name tags. Passed through the label module, so its AWS tag constraints (50 tags, key/value length and character rules) apply. | `map(string)` | `{}` | no |
 | <a name="input_handler"></a> [handler](#input\_handler) | Function entry point, e.g. handler.lambdaHandler | `string` | `"handler.lambdaHandler"` | no |
