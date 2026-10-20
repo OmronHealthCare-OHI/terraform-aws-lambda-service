@@ -427,6 +427,50 @@ run "rejects_bare_boundary_policy_name" {
   expect_failures = [var.permissions_boundary_arn]
 }
 
+# --- Exec role path ---
+
+run "exec_role_path_defaults_to_root" {
+  command = plan
+
+  assert {
+    condition     = aws_iam_role.exec.path == "/"
+    error_message = "Without exec_role_path the role must stay at IAM's default path, so existing roles are not replaced"
+  }
+}
+
+run "exec_role_path_applied_when_set" {
+  command = plan
+
+  variables {
+    exec_role_path = "/services/hello-repo/"
+  }
+
+  assert {
+    condition     = aws_iam_role.exec.path == "/services/hello-repo/"
+    error_message = "The exec role must be created under exec_role_path"
+  }
+}
+
+run "rejects_exec_role_path_without_trailing_slash" {
+  command = plan
+
+  variables {
+    exec_role_path = "/services/hello-repo"
+  }
+
+  expect_failures = [var.exec_role_path]
+}
+
+run "rejects_exec_role_path_without_leading_slash" {
+  command = plan
+
+  variables {
+    exec_role_path = "services/hello-repo/"
+  }
+
+  expect_failures = [var.exec_role_path]
+}
+
 # --- Log history must outlive the configuration ---
 
 run "log_group_is_kept_when_the_configuration_goes_away" {

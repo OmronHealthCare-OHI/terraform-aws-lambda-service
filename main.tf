@@ -153,6 +153,7 @@ resource "aws_lambda_alias" "live" {
 
 resource "aws_iam_role" "exec" {
   name                 = local.exec_role_name
+  path                 = var.exec_role_path
   permissions_boundary = local.permissions_boundary_arn
 
   assume_role_policy = jsonencode({
