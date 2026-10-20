@@ -117,6 +117,12 @@ left behind unmanaged. Remove it by hand once you no longer need its history.
 Changing `exec_role_path` deletes the role and creates it again, since IAM cannot
 move one. The function has no working role for the few seconds in between.
 
+The pipeline's roles cannot do both: the per-repository deploy roles manage IAM
+only under `/services/<repository>/`, and the older name-scoped roles only at `/`.
+Remove the old role first, with a role that can, then apply. Through a name-scoped
+role the apply deletes the old role and fails to create the new one, leaving the
+function without a role.
+
 ### When the log group already exists
 
 Any apply that would create `/aws/lambda/<function>` while it already exists
@@ -163,7 +169,7 @@ applied even where a `default_tags` block is missing.
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.67.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.68.0 |
 
 ### Modules
 
